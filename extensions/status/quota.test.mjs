@@ -11,7 +11,7 @@ const FEED = {
       { label: "Weekly", percentRemaining: 76.4, status: "healthy" },
     ] },
     { id: "cursor", tier: "PRO", status: "healthy", quotas: [
-      { label: "Monthly", percentRemaining: 20.8, resetText: "30320/38298 requests", status: "healthy" },
+      { label: "Monthly", percentRemaining: 20.8, unitsUsed: 30320, unitsLimit: 38298, status: "healthy" },
     ] },
     { id: "go", status: "depleted", quotas: [
       { label: "Monthly", percentRemaining: 0, resetsAt: new Date(Date.now() + 90 * 60_000 + 30_000).toISOString(), status: "depleted" },
@@ -116,7 +116,7 @@ test("compact text: one line per provider, detail only where unhealthy", () => {
     compact(FEED.providers),
     [
       "claude (Max): session 78% · weekly 76%",
-      "cursor (PRO): monthly 21% (30320/38298 requests)",
+      "cursor (PRO): monthly 21% (30320/38298)",
       "go: monthly 0% (depleted, resets 1h30m)",
       "gemini: unavailable, not signed in",
     ].join("\n"),
@@ -195,12 +195,12 @@ test("get_quotas and /quota share one client and report plainly", async (t) => {
   const run = async (params) => (await pi.tools.get_quotas.execute("id", params)).content[0].text;
 
   assert.match(await run({}), /^claude \(Max\)[\s\S]*gemini/);
-  assert.equal(await run({ provider: "cursor" }), "cursor (PRO): monthly 21% (30320/38298 requests)");
+  assert.equal(await run({ provider: "cursor" }), "cursor (PRO): monthly 21% (30320/38298)");
   assert.match(await run({ provider: "nope" }), /Unknown provider nope; known: claude, cursor, go, gemini/);
   const notes = [];
   await pi.commands.quota.handler("", { ui: { notify: (m, type) => notes.push([m, type]) } });
   assert.equal(notes[0][1], "info");
-  assert.match(notes[0][0], /^claude \(Max\): healthy\n  Session: 78% left, Resets in 57m, healthy\n  Weekly: 76% left, healthy\n/);
+  assert.match(notes[0][0], /^claude \(Max\): healthy\n  Session: 78% left, healthy\n  Weekly: 76% left, healthy\n/);
   assert.equal(srv.hits(), 1);
 
   const deadPi = fakePi();
@@ -252,13 +252,29 @@ test("a failed refresh keeps the last good feed while it is fresh", async (t) =>
   assert.equal(await c.get({ force: true }), null);
 });
 
+test("a balance-only bucket shows its balance instead of a percentage", () => {
+  const codex = { id: "codex", status: "healthy", quotas: [
+    { label: "Weekly", percentRemaining: 60, status: "healthy" },
+    { label: "Credits", percentRemaining: null, balanceRemaining: 1234, balanceUnit: "credits", status: "healthy" },
+  ] };
+  const api = { id: "api", quotas: [{ label: "Spend", percentRemaining: 75, balanceRemaining: 12.3, balanceCap: 50, balanceUnit: "usd", status: "healthy" }] };
+  assert.equal(compact([codex, api]), "codex: weekly 60% · credits 1,234 credits left\napi: spend 75% ($12.30 left)");
+  assert.equal(full({ providers: [codex] }), "codex: healthy\n  Weekly: 60% left, healthy\n  Credits: 1,234 credits left, healthy");
+});
+
+test("an old QuotaBar feed still renders, ignoring resetText", () => {
+  const cursor = { id: "cursor", quotas: [{ label: "Monthly", percentRemaining: 20.8, resetText: "30320/38298 requests", status: "healthy" }] };
+  assert.equal(compact([cursor]), "cursor: monthly 21%");
+  assert.equal(full({ providers: [cursor] }), "cursor\n  Monthly: 21% left, healthy");
+});
+
 test("an unhealthy bucket without a reset time shows only its status", () => {
   const p = { id: "x", quotas: [{ label: "Daily", percentRemaining: 10, status: "warning" }] };
   assert.equal(compact([p]), "x: daily 10% (warning)");
 });
 
 test("get_quotas text stays within ~100 tokens for any feed", async (t) => {
-  const bucket = (i) => ({ label: `Bucket number ${i}`, percentRemaining: 50, resetText: "12345/67890 requests", status: "warning", resetsAt: null });
+  const bucket = (i) => ({ label: `Bucket number ${i}`, percentRemaining: 50, unitsUsed: 12345, unitsLimit: 67890, status: "warning", resetsAt: null });
   const providers = Array.from({ length: 40 }, (_, i) => ({ id: `provider-${i}`, tier: "Enterprise", quotas: Array.from({ length: 5 }, (_, j) => bucket(j)) }));
   const big = compact(providers);
   assert.ok(big.length <= 400, `${big.length} chars`);

@@ -36,7 +36,9 @@ model thinking  │  in 12k out 3.4k cache 81% $0.412  │  ctx [███░░
 ## Tool
 
 - `get_quotas({ provider? })`: one compact line per provider with percent
-  left per bucket; reset times only for buckets that are not healthy.
+  left per bucket (the balance for a balance-only bucket, such as Codex
+  credits, and used/limit counts where QuotaBar sends them); reset times only
+  for buckets that are not healthy.
 
 ## Command
 

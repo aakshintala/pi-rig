@@ -30,7 +30,7 @@ const ZERO = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 };
 const FEED = {
   providers: [
     { id: "claude", quotas: [{ label: "Session", percentRemaining: 78, status: "healthy" }] },
-    { id: "codex", quotas: [{ label: "Weekly", percentRemaining: 30, status: "healthy" }] },
+    { id: "codex", quotas: [{ label: "Weekly", percentRemaining: 30, status: "healthy" }, { label: "Credits", percentRemaining: null, balanceRemaining: 0, balanceUnit: "credits", status: "healthy" }] },
     { id: "cursor", quotas: [{ label: "Month", percentRemaining: 10, status: "low" }] },
     { id: "gone", unavailable: "logged out", quotas: [] },
   ],
