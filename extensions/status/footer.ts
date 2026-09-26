@@ -114,9 +114,10 @@ export function footerLines(s: Snapshot, theme: Pick<Theme, "fg">): string[] {
   if (s.feed === null) bottom.push(dim("Q unavailable"));
   else if (s.feed) {
     const parts = s.feed.providers
-      .filter((pr) => !pr.unavailable && pr.quotas.length)
+      .filter((pr) => !pr.unavailable && pr.quotas.some((q) => typeof q.percentRemaining === "number"))
       .map((pr) => {
-        const left = pr.quotas.map((q) => q.percentRemaining);
+        // Balance-only buckets (null percent) have no headroom to colour.
+        const left = pr.quotas.flatMap((q) => (typeof q.percentRemaining === "number" ? [q.percentRemaining] : []));
         const min = Math.min(...left); // colour from the exact value, not the rounded text
         return fg(min < QUOTA_DANGER ? "error" : min < QUOTA_WARN ? "warning" : "text", `${oneLine(pr.id)} ${left.map((v) => `${Math.round(v)}%`).join("/")}`);
       });

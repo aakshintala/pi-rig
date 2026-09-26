@@ -7,12 +7,18 @@ import { resultText, toolRenderers } from "../../shared/tool-display/index.ts";
 export const FOOTER_TIMEOUT_MS = 5_000;
 export const CALL_TIMEOUT_MS = 8_000;
 
+// Older QuotaBar feeds lack the balance and units fields and always send a percentage.
 export type Bucket = {
   label: string;
-  percentRemaining: number;
+  percentRemaining: number | null; // null (or absent) for a balance-only bucket
   resetsAt?: string | null;
-  resetText?: string | null;
   status: string;
+  balanceRemaining?: number | null;
+  balanceUsed?: number | null;
+  balanceCap?: number | null;
+  balanceUnit?: "usd" | "credits" | null;
+  unitsUsed?: number | null;
+  unitsLimit?: number | null;
 };
 export type Provider = {
   id: string;
@@ -142,11 +148,23 @@ function until(iso: string | null | undefined, now: number): string | null {
   return d ? `${d}d${h ? `${h}h` : ""}` : h ? `${h}h${m ? `${m}m` : ""}` : `${m}m`;
 }
 
-// Cursor puts request counts in resetText; "Resets in ..." repeats resetsAt.
-const extra = (q: Bucket) => {
-  const t = q.resetText?.trim();
-  return t && !/^resets?\b/i.test(t) ? t : null;
+const num = (n: number, digits: number) => n.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: 2 });
+
+/** "$12.34 left" or "1,234 credits left". */
+const balance = (q: Bucket) => {
+  const n = q.balanceRemaining;
+  if (typeof n !== "number") return null;
+  return `${q.balanceUnit === "credits" ? `${num(n, 0)} credits` : `$${num(n, 2)}`} left`;
 };
+
+const hasPercent = (q: Bucket) => typeof q.percentRemaining === "number";
+
+/** "78%", or the balance when the bucket has no percentage. */
+const amount = (q: Bucket) => (hasPercent(q) ? `${Math.round(q.percentRemaining!)}%` : balance(q) ?? "?");
+
+/** Counts ("412/500"), or the balance left beside a percentage. */
+const extra = (q: Bucket) =>
+  typeof q.unitsUsed === "number" && q.unitsLimit ? `${q.unitsUsed}/${q.unitsLimit}` : hasPercent(q) ? balance(q) : null;
 
 const head = (p: Provider) => `${p.id}${p.tier ? ` (${p.tier})` : ""}`;
 
@@ -179,7 +197,7 @@ export function compact(providers: Provider[], now = Date.now()): string {
         .map((q) => {
           const reset = until(q.resetsAt, now);
           const notes = [extra(q), q.status !== "healthy" && (reset ? `${q.status}, resets ${reset}` : q.status)].filter(Boolean);
-          return `${q.label.toLowerCase()} ${Math.round(q.percentRemaining)}%${notes.length ? ` (${notes.join("; ")})` : ""}`;
+          return `${q.label.toLowerCase()} ${amount(q)}${notes.length ? ` (${notes.join("; ")})` : ""}`;
         })
         .join(" · ");
       const t = until(p.throttledUntil, now);
@@ -198,10 +216,8 @@ export function full(feed: Feed, now = Date.now()): string {
     const t = until(p.throttledUntil, now);
     if (p.throttledUntil) lines.push(`  throttled${t ? ` for ${t}` : ""}, showing last-known data`);
     for (const q of p.quotas) {
-      const text = q.resetText?.trim();
       const at = until(q.resetsAt, now);
-      const reset = text && /^resets?\b/i.test(text) ? text : at && `resets in ${at}`;
-      const parts = [`${Math.round(q.percentRemaining)}% left`, extra(q), reset, q.status];
+      const parts = [hasPercent(q) ? `${amount(q)} left` : amount(q), extra(q), at && `resets in ${at}`, q.status];
       lines.push(`  ${q.label}: ${parts.filter(Boolean).join(", ")}`);
     }
   }
@@ -234,7 +250,7 @@ export function registerQuota(pi: ExtensionAPI, settings: Settings, deps: Partia
     name: "get_quotas",
     label: "Get Quotas",
     description:
-      "Remaining subscription quota per AI provider, from QuotaBar.app. Returns one line per provider: percent left per bucket, plus status and reset time for unhealthy buckets.",
+      "Remaining subscription quota per AI provider, from QuotaBar.app. Returns one line per provider: percent or balance left per bucket, plus status and reset time for unhealthy buckets.",
     parameters: {
       type: "object",
       properties: { provider: { type: "string", description: "Provider id, e.g. claude, codex, cursor. Omit for all." } },
