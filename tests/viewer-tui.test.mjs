@@ -38,8 +38,8 @@ const rows = (on, extra = {}, sel) => {
 const logView = (lines) => [" monitor build · 0s · esc back", ...lines.map((l) => ` ${l}`)];
 const agentView = (lines, state = "0s") => [` agent scout · ${state} · esc back · enter steers`, " agent transcript", ...lines];
 
-async function start(t, { lines = ["one", "two", "three"], fullscreen = true, extensions = EXTENSIONS, before, ...options } = {}) {
-  const tui = await startTui(t, { extensions, args: fullscreen ? ["--tui-mode", "fullscreen"] : [], ...options });
+async function start(t, { lines = ["one", "two", "three"], extensions = EXTENSIONS, before, ...options } = {}) {
+  const tui = await startTui(t, { extensions, ...options });
   t.after(() => assert.deepEqual(liveGroup(tui.pid), []));
   let n = 0;
   tui.fx = async (...ops) => {
@@ -231,7 +231,7 @@ test("file watchers are released when the viewer closes, switches or the session
   tui.type("/new");
   tui.keys("Enter");
   await tui.waitForEvent("session_start", 2);
-  await tui.waitForScreen(screen([], [...rows("main"), "   monitor lint · 0s"]));
+  await tui.waitForScreen(screen(["", "", " ✓ New session started"], [...rows("main"), "   monitor lint · 0s"]));
   await tui.watchers(0);
 });
 
@@ -276,7 +276,7 @@ test("when the chat lookup fails, the viewer opens as a full-size overlay", asyn
 
 test("in regular mode the viewer is the overlay, so it can follow, pause and jump", async (t) => {
   const lines = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`);
-  const tui = await start(t, { fullscreen: false, lines, replies: ["hello back"] });
+  const tui = await start(t, { args: ["--tui-mode", "regular"], lines, replies: ["hello back"] });
   tui.type("hi");
   tui.keys("Enter");
   await tui.waitForEvent("agent_end");
@@ -414,7 +414,7 @@ test("switching to regular mode while viewing moves the item to the overlay", as
   tui.type("tui mode");
   await tui.waitForScreen(
     screen([...logView(["one", "two", "three"]), "", "", "", "", "", ""], rows("a"), {
-      editor: ["> tui mode", "", "→ TUI mode                          fullscreen", "", "  Interface layout; fullscreen mode is experimental", "", "  Type to search · Enter/Space to change · Esc to cancel"],
+      editor: ["> tui mode", "", "→ TUI mode                          fullscreen", "", "  Interface layout; regular mode uses the terminal's normal scrollback", "", "  Type to search · Enter/Space to change · Esc to cancel"],
     }),
   );
   tui.keys("Enter"); // fullscreen → regular
@@ -424,7 +424,7 @@ test("switching to regular mode while viewing moves the item to the overlay", as
     "\n" + ["", " TUI mode: regular", "", BORDER, ...editor, BORDER, ...rows("main"), ...FOOTER, ...Array(ROWS).fill("")].slice(0, ROWS).join("\n");
   tui.keys("Escape"); // closes the viewer
   await tui.waitForScreen(
-    regular(["> tui mode", "", "→ TUI mode                          regular", "", "  Interface layout; fullscreen mode is experimental", "", "  Type to search · Enter/Space to change · Esc to cancel"]),
+    regular(["> tui mode", "", "→ TUI mode                          regular", "", "  Interface layout; regular mode uses the terminal's normal scrollback", "", "  Type to search · Enter/Space to change · Esc to cancel"]),
   );
   tui.keys("Escape"); // closes the settings
   await tui.waitForScreen(regular([""]));

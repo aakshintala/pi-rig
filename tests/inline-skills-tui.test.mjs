@@ -19,10 +19,11 @@ async function start(t, { extensions = [EXT], replies = [], args = [] } = {}) {
   return tui;
 }
 
-// An 80x24 screen: `above` (the transcript), the editor holding `text`, then `below`.
+// An 80x24 screen in fullscreen: the transcript (`above`) on top, blank fill, the dock
+// (editor borders around `text`, the skill list, the footer widget) pinned to the bottom.
 const screen = (above, text, below = []) => {
-  const rows = [...above, "─".repeat(80), text, "─".repeat(80), ...below, "(footer)"];
-  return "\n" + [...rows, ...Array(24 - rows.length).fill("")].join("\n");
+  const dock = ["─".repeat(80), text, "─".repeat(80), ...below, "(footer)"];
+  return "\n" + [...above, ...Array(24 - above.length - dock.length).fill(""), ...dock].join("\n");
 };
 const idle = (text, below) => screen([""], text, below);
 const GRI = [
@@ -46,10 +47,9 @@ test("mid-prompt / plus two letters opens the skill list; Tab and Enter accept",
 });
 
 test("the patch works in fullscreen mode too", async (t) => {
-  const tui = await start(t, { args: ["--tui-mode", "fullscreen"] });
+  const tui = await start(t);
   tui.type("please /gr");
-  const rows = ["─".repeat(80), "please /gr", "─".repeat(80), ...GRI, "(footer)"];
-  await tui.waitForScreen("\n" + [...Array(24 - rows.length).fill(""), ...rows].join("\n"));
+  await tui.waitForScreen(idle("please /gr", GRI));
 });
 
 test("Tab opens the list at any point; start-of-message / and paths stay Pi's", async (t) => {
@@ -151,12 +151,11 @@ test("the ask_user panel in the editor slot is left alone", async (t) => {
   const tui = await start(t, { extensions: [ASK_USER, EXT], replies: [call, "done"] });
   tui.type("ask");
   tui.keys("Enter");
-  const above = ["", " ask", "", "", " ⏺ Ask User(db)", "", RULE];
-  const panel = (body) =>
-    "\n" +
-    [...above, "Which db?", "", ...body, "", "  ↑↓ move · Enter choose · Esc cancel", RULE, "(footer)", ...Array(24 - (above.length + 2 + body.length + 4)).fill("")].join(
-      "\n",
-    );
+  const above = ["", " ask", "", "", " ⏺ Ask User(db)", ""];
+  const panel = (body) => {
+    const dock = [RULE, "Which db?", "", ...body, "", "  ↑↓ move · Enter choose · Esc cancel", RULE, "(footer)"];
+    return "\n" + [...above, ...Array(24 - (above.length + dock.length)).fill(""), ...dock].join("\n");
+  };
   await tui.waitForScreen(panel(["→ 1. Alpha", "  2. Beta", "  3. Type your own answer"]));
   tui.keys("Up");
   tui.type("x /ab");

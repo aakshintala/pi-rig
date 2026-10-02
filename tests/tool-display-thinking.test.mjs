@@ -108,11 +108,24 @@ test("the last release leaves a later wrapper in place and the patch inert", (t)
   for (const [name, [m]] of Object.entries(SHAPES)) assert.deepEqual(render(m, true), STOCK[name].hidden, name);
 });
 
-test("off Pi 0.87.x the render is Pi's own", (t) => {
+test("the version is ignored: the shape probe decides", (t) => {
   const owner = {};
   t.after(() => releaseHiddenThinking(owner));
-  assert.equal(useHiddenThinking(owner, "0.88.0"), false);
-  for (const [name, [m]] of Object.entries(SHAPES)) assert.deepEqual(render(m, true), STOCK[name].hidden, name);
+  assert.equal(useHiddenThinking(owner, "0.88.0"), true);
+  assert.equal(useHiddenThinking(owner, "1.0.0"), true);
+  assert.deepEqual(render(SHAPES["thinking and a call"][0], true), []);
+});
+
+test("without a patchable updateContent the patch stays off", (t) => {
+  const proto = AssistantMessageComponent.prototype;
+  const stock = proto.updateContent;
+  proto.updateContent = undefined;
+  t.after(() => {
+    proto.updateContent = stock;
+  });
+  const owner = {};
+  t.after(() => releaseHiddenThinking(owner));
+  assert.equal(useHiddenThinking(owner, "1.0.0"), false);
 });
 
 // Future Pis that change the children: one more child, another kind in a slot, or
@@ -179,9 +192,9 @@ test("the extension patches for its session's life: kept once over /reload, gone
   }
 });
 
-test("the extension leaves rendering to Pi off Pi 0.87.x", async (t) => {
+test("the extension patches whatever Pi version it runs on", async (t) => {
   await started((await scriptedSession(t, { extensions: [(pi) => toolDisplay(pi, "0.88.0")] })).session);
-  assert.deepEqual(render(SHAPES["thinking and a call"][0], true), STOCK["thinking and a call"].hidden);
+  assert.deepEqual(render(SHAPES["thinking and a call"][0], true), []);
 });
 
 // Pi emits session_start from bindExtensions, which the scripted session skips.

@@ -199,7 +199,7 @@ export default function (pi: ExtensionAPI) {
       reloadDraft = ctx.ui.getEditorText(); // Pi clears the editor; restored after the reload
       rows = rows.filter((r) => r !== row);
       draw();
-      tui.getFocusedComponent().onSubmit("/reload");
+      tui.getFocusedComponent()?.onSubmit("/reload");
     });
   }
 

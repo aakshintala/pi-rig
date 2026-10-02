@@ -6,6 +6,18 @@ import { liveGroup, startTui } from "../../tests/helpers/tui.mjs";
 const EXT = new URL("./index.ts", import.meta.url).pathname;
 const call = (todos) => [{ type: "toolCall", id: "t1", name: "todo_write", arguments: { todos } }];
 
+const ROWS = 24;
+const BORDER = "─".repeat(80);
+const stats = (prefix) => prefix + " ".repeat(71 - prefix.length) + "harness-1";
+// Fullscreen: chat on top, the widget(s) above the input dock and footer at the bottom;
+// the blank fill between them is trimmed right by waitForScreen.
+const screen = (chat, widgets = [], statsLine) => {
+  const dock = [...widgets, BORDER, "", BORDER, "~/cwd", stats(statsLine)];
+  const fill = Array(ROWS - dock.length - chat.length - 1).fill("");
+  if (fill.length < 0) throw new Error("screen overflow");
+  return "\n" + ["", ...chat, ...fill, ...dock].join("\n");
+};
+
 async function start(t, opts) {
   const tui = await startTui(t, opts);
   t.after(() => assert.deepEqual(liveGroup(tui.pid), [])); // runs after the helper's cleanup
@@ -23,82 +35,29 @@ test("widget: one compact row, click expands the capped list, hidden when cleare
   const done = [{ text: "a", status: "completed" }, { text: "b", status: "completed" }];
   const tui = await start(t, { extensions: [EXT], replies: [call([...done, ...open]), "Planned.", call([]), "Cleared."] });
 
+  const chat = [" plan", "", "", " ⏺ TodoWrite", "   ⎿  Todo list saved: 8 pending, 1 in_progress, 2 completed.", "", " Planned."];
+  const compact = [" ◼ step 1 · 8 pending · 2 done"];
+  const expanded = [" ✔ 2 done", " ◼ step 1", " ◻ step 2", " ◻ step 3", " ◻ step 4", " ◻ step 5", " ◻ step 6", " ◻ step 7", " … 2 more"];
   await send(tui, "plan", 1);
-  await tui.waitForScreen(`
+  await tui.waitForScreen(screen(chat, compact, "↑132 ↓109 R3 W133 CH1.1% 0.2%/128k (auto)"));
 
- plan
-
-
- ⏺ TodoWrite
-   ⎿  Todo list saved: 8 pending, 1 in_progress, 2 completed.
-
- Planned.
-
- ◼ step 1 · 8 pending · 2 done
-────────────────────────────────────────────────────────────────────────────────
-
-────────────────────────────────────────────────────────────────────────────────
-~/cwd
-↑132 ↓109 R3 W133 CH1.1% 0.2%/128k (auto)                              harness-1
-\n\n\n\n\n\n\n\n`);
   tui.type("/todos");
   tui.keys("Enter");
-  await tui.waitForScreen(`
+  await tui.waitForScreen(screen(chat, expanded, "↑132 ↓109 R3 W133 CH1.1% 0.2%/128k (auto)"));
 
- plan
-
-
- ⏺ TodoWrite
-   ⎿  Todo list saved: 8 pending, 1 in_progress, 2 completed.
-
- Planned.
-
- ✔ 2 done
- ◼ step 1
- ◻ step 2
- ◻ step 3
- ◻ step 4
- ◻ step 5
- ◻ step 6
- ◻ step 7
- … 2 more
-────────────────────────────────────────────────────────────────────────────────
-
-────────────────────────────────────────────────────────────────────────────────
-~/cwd
-↑132 ↓109 R3 W133 CH1.1% 0.2%/128k (auto)                              harness-1
-`);
   await send(tui, "clear", 2);
-  await tui.waitForScreen(`
-
- plan
-
-
- ⏺ TodoWrite
-   ⎿  Todo list saved: 8 pending, 1 in_progress, 2 completed.
-
- Planned.
-
-
- clear
-
-
- ⏺ TodoWrite
-   ⎿  Todo list cleared: 0 pending, 0 in_progress, 0 completed.
-
- Cleared.
-
-────────────────────────────────────────────────────────────────────────────────
-
-────────────────────────────────────────────────────────────────────────────────
-~/cwd
-↑169 ↓117 R275 W170 CH70.7% 0.2%/128k (auto)                           harness-1
-`);
+  await tui.waitForScreen(
+    screen(
+      [...chat, "", "", " clear", "", "", " ⏺ TodoWrite", "   ⎿  Todo list cleared: 0 pending, 0 in_progress, 0 completed.", "", " Cleared."],
+      [],
+      "↑169 ↓117 R275 W170 CH70.7% 0.2%/128k (auto)",
+    ),
+  );
 });
 
 test("widget: a fullscreen click expands and collapses the list", async (t) => {
   const todos = [{ text: "test", status: "in_progress" }, { text: "ship", status: "pending" }];
-  const tui = await start(t, { extensions: [EXT], args: ["--tui-mode", "fullscreen"], replies: [call(todos), "Planned."] });
+  const tui = await start(t, { extensions: [EXT], replies: [call(todos), "Planned."] });
   await send(tui, "plan", 1);
   const compact = " ◼ test · 1 pending";
   const expanded = " ◻ ship";
@@ -121,56 +80,11 @@ test("widget: a fully completed list is hidden after the next prompt", async (t)
   const done = ["a", "b", "c"].map((text) => ({ text, status: "completed" }));
   const tui = await start(t, { extensions: [EXT], replies: [call(done), "All done.", "You're welcome."] });
 
+  const chat = [" finish", "", "", " ⏺ TodoWrite", "   ⎿  Todo list saved: 0 pending, 0 in_progress, 3 completed.", "", " All done."];
   await send(tui, "finish", 1);
-  await tui.waitForScreen(`
-
- finish
-
-
- ⏺ TodoWrite
-   ⎿  Todo list saved: 0 pending, 0 in_progress, 3 completed.
-
- All done.
-
- ✔ 3 done
-────────────────────────────────────────────────────────────────────────────────
-
-────────────────────────────────────────────────────────────────────────────────
-~/cwd
-↑57 ↓34 R3 W57 CH2.7% 0.1%/128k (auto)                                 harness-1
-
-
-
-
-
-
-
-
-`);
+  await tui.waitForScreen(screen(chat, [" ✔ 3 done"], "↑57 ↓34 R3 W57 CH2.7% 0.1%/128k (auto)"));
   await send(tui, "thanks", 2);
-  await tui.waitForScreen(`
-
- finish
-
-
- ⏺ TodoWrite
-   ⎿  Todo list saved: 0 pending, 0 in_progress, 3 completed.
-
- All done.
-
-
- thanks
-
-
- You're welcome.
-
-────────────────────────────────────────────────────────────────────────────────
-
-────────────────────────────────────────────────────────────────────────────────
-~/cwd
-↑65 ↓38 R60 W66 CH77.0% 0.1%/128k (auto)                               harness-1
-
-
-
-`);
+  await tui.waitForScreen(
+    screen([...chat, "", "", " thanks", "", "", " You're welcome."], [], "↑65 ↓38 R60 W66 CH77.0% 0.1%/128k (auto)"),
+  );
 });

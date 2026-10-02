@@ -43,10 +43,11 @@ const ROWS = 24;
 const BORDER = "─".repeat(COLS);
 const WORKING = "── ● Working " + "─".repeat(COLS - 13);
 const footer = (usage) => ["~/cwd", usage.padEnd(COLS - "harness-1".length) + "harness-1"];
-// The chat, the editor's top border, what is under the editor, and the footer's usage line.
+// Fullscreen mode: the chat on top; the editor (its top border, a blank row, its bottom
+// border), what is under the editor, and the footer pinned to the bottom rows.
 const screen = (chat, top, below, usage) => {
-  const lines = [...chat, top, "", BORDER, ...below, ...footer(usage)];
-  return "\n" + [...lines, ...Array(ROWS - lines.length).fill("")].join("\n");
+  const dock = [top, "", BORDER, ...below, ...footer(usage)];
+  return "\n" + [...chat, ...Array(ROWS - dock.length - chat.length).fill(""), ...dock].join("\n");
 };
 const CHAT = ["", " go", "", "", ` ⏺ Bash(${COMMAND})`];
 const RUNNING = screen([...CHAT, ""], WORKING, [], "↑2 ↓17 W2 CH0.0% 0.0%/128k (auto)");

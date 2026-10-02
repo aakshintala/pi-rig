@@ -19,7 +19,7 @@ pi install /path/to/pi-rig
 | [tool-display](extensions/tool-display/README.md) | Groups tool calls into static live summaries (Pi's editor owns the spinner); Ctrl+O or a click reveals errors, while built-in `read`, `edit` and `write` show call lines and edit diffs | [#40](https://github.com/aakshintala/pi-rig/issues/40) |
 | [working](extensions/working/README.md) | Shows a glimmering Thinking or Running tool label and elapsed time in Pi's editor border | [#40](https://github.com/aakshintala/pi-rig/issues/40) |
 | [todo](extensions/todo/README.md) | `todo_write` keeps a TODO list; a compact row above the editor expands on click or `/todos` | [#28](https://github.com/aakshintala/pi-rig/issues/28) |
-| [search](extensions/search/README.md) | `grep` and `find` served by the FFF native index, falling back to Pi's built-ins | [#35](https://github.com/aakshintala/pi-rig/issues/35) |
+| [search](extensions/search/README.md) | `grep` and `find` served by Pi's built-ins, or the FFF native index when `search.disabled` is false | [#35](https://github.com/aakshintala/pi-rig/issues/35) |
 | [stamp](extensions/stamp/README.md) | One compact duration and completion-time line per settled agent run | [#36](https://github.com/aakshintala/pi-rig/issues/36) |
 | [ask-user](extensions/ask-user/README.md) | `ask_user`: questions in a bottom panel with inline free text | [#34](https://github.com/aakshintala/pi-rig/issues/34) |
 | [queue](extensions/queue/README.md) | Steering and follow-ups above other widgets; retrieve a row to edit, or abort and send queued steering | [#39](https://github.com/aakshintala/pi-rig/issues/39) |

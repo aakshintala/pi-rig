@@ -38,6 +38,7 @@ The built-in `grep` and `find` run instead, with a one-time warning, when:
 - the session starts in `$HOME` or `/` (symlinks resolved)
 - loading and the first scan take over 5 s (that call only)
 - a path lies outside the working directory, or holds glob characters
+- `disabled` is set (see below): every call uses the built-ins, no index is opened
 
 ## Parity
 
@@ -47,4 +48,12 @@ implementations and compares the lines up to ordering, using real `rg` and
 deliberate: the built-in greps `.git/` internals, and rooted globs such as
 `src/**/*.ts` match nothing in the built-in `grep`.
 
-No commands, keys or `rig.json` settings.
+## `rig.json` settings
+
+Section `search`, edited in `/rig`:
+
+| Key | Default | Meaning |
+|---|---|---|
+| `disabled` | true | Serve grep and find with Pi's built-ins instead of the FFF index (the index memory-maps gigabytes on large trees; set to `false` to opt back in) |
+
+No commands or keys.

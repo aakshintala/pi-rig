@@ -11,15 +11,21 @@ const root = (p) => fileURLToPath(new URL(`../${p}`, import.meta.url));
 const extensions = [root("extensions/theme/index.ts"), root("tests/fixtures/theme/probe.ts")];
 const BORDER = "─".repeat(80);
 const FOOTER = "~/cwd\n0.0%/128k (auto)                                                       harness-1";
-const screen = (name, body = "") => `
-
-theme: ${name}
-${BORDER}
-${body}
-${BORDER}
-${FOOTER}` + "\n".repeat(body.split("\n").length === 1 ? 17 : 16);
-const picker = (name, cursor) =>
-  screen(name, `${cursor === "dark" ? "→" : " "} dark        (current)\n${cursor === "light" ? "→" : " "} light`);
+const ROWS = 24;
+// Fullscreen: the chat (ending in the widget row) on top, the dock pinned to the
+// bottom. `body` is the editor slot: the /theme picker replaces the blank editor row.
+const screen = (name, body = []) => {
+  body = [].concat(body);
+  const dock = [BORDER, ...(body.length ? body : [""]), BORDER, "~/cwd", "0.0%/128k (auto)                                                       harness-1"];
+  return "\n" + [...Array(ROWS - 1 - dock.length).fill(""), `theme: ${name}`, ...dock].join("\n");
+};
+const picker = (name, cursor, current = cursor) =>
+  screen(
+    name,
+    ["system", "dark", "light"].map(
+      (n) => `${n === cursor ? "→" : " "} ${n.padEnd(12)}${n === current ? "(current)" : ""}`.trimEnd(),
+    ),
+  );
 
 // Pi saves settings on its write queue, after the redraw, so wait for the file itself.
 function waitForSetting(path, key, want) {
@@ -67,19 +73,19 @@ async function open(t) {
   t.after(() => assert.deepEqual(liveGroup(tui.pid), []));
   const path = join(dirname(tui.home), "agent", "settings.json");
   const settings = () => JSON.parse(readFileSync(path, "utf8"));
-  await tui.waitForScreen(screen("dark"));
+  await tui.waitForScreen(screen("system"));
   tui.type("/theme");
   tui.keys("Enter");
-  await tui.waitForScreen(picker("dark", "dark"));
+  await tui.waitForScreen(picker("system", "system"));
   tui.keys("Down");
-  await tui.waitForScreen(picker("light", "light")); // preview
+  await tui.waitForScreen(picker("dark", "dark", "system")); // preview
   return { tui, settings, path };
 }
 
 test("/theme previews on move and Esc restores the old theme without saving", async (t) => {
   const { tui, settings } = await open(t);
   tui.keys("Escape");
-  await tui.waitForScreen(screen("dark"));
+  await tui.waitForScreen(screen("system"));
   await drainSettings(tui, 2);
   assert.equal(settings().theme, undefined);
 });
@@ -87,15 +93,17 @@ test("/theme previews on move and Esc restores the old theme without saving", as
 test("/theme Enter applies the theme and Pi saves it", async (t) => {
   const { tui, path } = await open(t);
   tui.keys("Enter");
-  await tui.waitForScreen(screen("light"));
-  await waitForSetting(path, "theme", "light");
+  await tui.waitForScreen(screen("dark"));
+  await waitForSetting(path, "theme", "dark");
 });
 
-// After /reload with an automatic light/dark setting: the reload notice sits above.
+// After /reload with an automatic light/dark setting: the notice sits in the chat above.
 const RELOADED = " Reloaded keybindings, extensions, skills, prompts, themes, and context files";
-const autoScreen = (name, body = "") =>
-  [`\n\n${RELOADED}`, "", `theme: ${name}`, BORDER, body, BORDER, FOOTER].join("\n") +
-  "\n".repeat(body.split("\n").length === 1 ? 15 : 14);
+const autoScreen = (name, body = []) => {
+  body = [].concat(body);
+  const dock = [BORDER, ...(body.length ? body : [""]), BORDER, "~/cwd", "0.0%/128k (auto)                                                       harness-1"];
+  return "\n" + ["", RELOADED, ...Array(ROWS - 2 - 1 - dock.length).fill(""), `theme: ${name}`, ...dock].join("\n");
+};
 
 test("/theme cancel keeps Pi following the terminal's light/dark scheme", async (t) => {
   const tui = await startTui(t, { extensions });
@@ -109,9 +117,9 @@ test("/theme cancel keeps Pi following the terminal's light/dark scheme", async 
 
   tui.type("/theme");
   tui.keys("Enter");
-  await tui.waitForScreen(autoScreen("dark", "→ dark        (current)\n  light"));
+  await tui.waitForScreen(autoScreen("dark", ["  system", "→ dark        (current)", "  light"]));
   tui.keys("Down");
-  await tui.waitForScreen(autoScreen("light", "  dark        (current)\n→ light")); // preview
+  await tui.waitForScreen(autoScreen("light", ["  system", "  dark        (current)", "→ light"])); // preview
   tui.keys("Escape");
   await tui.waitForScreen(autoScreen("dark"));
 

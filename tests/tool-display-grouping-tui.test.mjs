@@ -21,8 +21,9 @@ const call = (id, name, args) => ({ type: "toolCall", id, name, arguments: args 
 const text = (t) => ({ type: "text", text: t });
 const RULE = "─".repeat(80);
 
-// A full 30-row screen: `top` rows, blank rows, then `bottom` rows.
-const rows = (top, bottom = []) => "\n" + [...top, ...Array(30 - top.length - bottom.length).fill(""), ...bottom].join("\n");
+// Fullscreen mode: the chat on top, blank rows in the middle and the dock pinned to
+// the bottom of the pane's 30 rows.
+const rows = (chat, dock = []) => "\n" + [...chat, ...Array(30 - chat.length - dock.length).fill(""), ...dock].join("\n");
 
 async function start(t, replies, args = []) {
   const tui = await startTui(t, { extensions: EXTENSIONS, args: [...TOOLS, ...args], rows: 30, replies });
@@ -58,98 +59,55 @@ test("a run of calls is one live summary line; failures stay folded; text makes 
 
  ${bullet} Wrote 1 file +2
 `;
-  await tui.waitForScreen(`${top("⏺")}
-── ~ Working ───────────────────────────────────────────────────────────────────
-
-${RULE}
-~/cwd
-↑2 ↓62 W2 CH0.0% 0.1%/128k (auto)                                      harness-1
-
-
-
-
-
-
-
-
-
-
-
-
-
-`);
+  await tui.waitForScreen(rows([...top("⏺").replace(/^\n/, "").split("\n")], [`── ~ Working ${"─".repeat(67)}`, "", RULE, "~/cwd", "↑2 ↓62 W2 CH0.0% 0.1%/128k (auto)                                      harness-1"]));
 
   writeFileSync(join(tui.cwd, "go"), "");
   await tui.waitForEvent("agent_end");
-  await tui.waitForScreen(`${top("⏺")}
- Done.
-
-${RULE}
-
-${RULE}
-~/cwd
-↑141 ↓64 R2 W141 CH0.7% 0.2%/128k (auto)                               harness-1
-
-
-
-
-
-
-
-
-
-
-
-`);
+  await tui.waitForScreen(rows([...top("⏺").replace(/^\n/, "").split("\n"), " Done."], ["", RULE, "", RULE, "~/cwd", "↑141 ↓64 R2 W141 CH0.7% 0.2%/128k (auto)                               harness-1"]));
 
   tui.keys("C-o");
-  await tui.waitForScreen(`
-
- ⏺ Edit(b.txt)
-   ⎿  Added 3 lines, removed 2 lines
-      -two
-      -three
-      +2
-      +3
-      +3.5
-
- ⏺ Wait(go)
-   ⎿  Released
-
- ⏺ Edit(a.txt)
-   ⎿  Error: Could not find the exact text in a.txt. The old text must match
-      exactly including all whitespace and newlines.
-
- ⏺ Write(c.txt)
-   ⎿  Wrote 2 lines
-      l1
-      l2
-
- Done.
-
- Tool output: expanded
-
-${RULE}
-
-${RULE}
-~/cwd
-↑141 ↓64 R2 W141 CH0.7% 0.2%/128k (auto)                               harness-1`);
+  await tui.waitForScreen(rows([
+    "",
+    " ⏺ Edit(b.txt)",
+    "   ⎿  Added 3 lines, removed 2 lines",
+    "      -two",
+    "      -three",
+    "      +2",
+    "      +3",
+    "      +3.5",
+    "",
+    " ⏺ Wait(go)",
+    "   ⎿  Released",
+    "",
+    " ⏺ Edit(a.txt)",
+    "   ⎿  Error: Could not find the exact text in a.txt. The old text must match",
+    "      exactly including all whitespace and newlines.",
+    "",
+    " ⏺ Write(c.txt)",
+    "   ⎿  Wrote 2 lines",
+    "      l1",
+    "      l2",
+    "",
+    " Done.",
+    "",
+    " Tool output: expanded",
+  ], ["", RULE, "", RULE, "~/cwd", "↑141 ↓64 R2 W141 CH0.7% 0.2%/128k (auto)                               harness-1"]));
 });
 
 test("Esc counts calls with no result as cancelled", async (t) => {
   const tui = await start(t, [[call("c1", "read", { path: "a.txt" }), call("c2", "wait", { file: "x" }), call("c3", "wait", { file: "y" })], "Done."]);
   await tui.waitForEvent("tool_execution_end"); // the read is done, both waits are running
-  await tui.waitForScreen(rows(["", " go", "", "", " ⏺ Read 1 file, waited on 2 files", "", `── ~ Working ${"─".repeat(67)}`, "", RULE, "~/cwd",
+  await tui.waitForScreen(rows(["", " go", "", "", " ⏺ Read 1 file, waited on 2 files"], [`── ~ Working ${"─".repeat(67)}`, "", RULE, "~/cwd",
     "↑2 ↓15 W2 CH0.0% 0.0%/128k (auto)                                      harness-1"]));
   tui.keys("Escape");
   await tui.waitForEvent("agent_end");
-  await tui.waitForScreen(rows(["", " go", "", "", " ⏺ Read 1 file, waited on 2 files", "", " Error: This operation was aborted", "", RULE, "", RULE, "~/cwd",
-    "↑2 ↓15 W2 0.0%/128k (auto)                                             harness-1"]));
+  await tui.waitForScreen(rows(["", " go", "", "", " ⏺ Read 1 file, waited on 2 files", "", " Error: This operation was aborted"],
+    ["", RULE, "", RULE, "~/cwd", "↑2 ↓15 W2 0.0%/128k (auto)                                             harness-1"]));
 });
 
-test("in fullscreen, a click on a group toggles that group only", async (t) => {
+test("a click on a group toggles that group only", async (t) => {
   const read = (id, path) => call(id, "read", { path });
-  const tui = await start(t, [[read("c1", "a.txt"), read("c2", "b.txt"), text("and"), read("c3", "b.txt")], "Done."], ["--tui-mode", "fullscreen"]);
+  const tui = await start(t, [[read("c1", "a.txt"), read("c2", "b.txt"), text("and"), read("c3", "b.txt")], "Done."]);
   await tui.waitForEvent("agent_end");
   const screen = (...groups) => rows(["", " go", "", "", " and", "", ...groups, "", " Done."],
     ["", RULE, "", RULE, "~/cwd", "↑50 ↓20 R2 W50 CH2.0% 0.1%/128k (auto)                                 harness-1"]);

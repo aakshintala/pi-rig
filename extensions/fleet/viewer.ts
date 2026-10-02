@@ -21,7 +21,7 @@ import { duration, fleet, isFinished, type Item } from "../../shared/fleet/index
 import { oneLine } from "../../shared/text/index.ts";
 import { logSource } from "./log.ts";
 
-/** The Pi version the chat-area swap was tested on (umbrella #1: guarded patch). */
+/** The Pi version the chat-area swap was tested on (kept for tests; the probe below decides). */
 export const TESTED_PI = "0.87.1";
 /** How often an open log is checked for new output, in ms. */
 const LOG_POLL_MS = 200;
@@ -29,11 +29,10 @@ const LOG_POLL_MS = 200;
 /**
  * Pi's chat container and its parent. Pi mounts `documentContainer`
  * (header, loaded resources, chat) as the TUI's first child in both modes.
- * Nothing when the version or the shape differs: the viewer then uses an overlay.
+ * Nothing when the shape differs: the viewer then uses an overlay.
  * Restoring the chat looks the parent up again the same way.
  */
-export function findChat(tui: TUI, version = VERSION) {
-  if (version !== TESTED_PI) return;
+export function findChat(tui: TUI, _version = VERSION) {
   const doc = (tui as unknown as Container).children?.[0];
   const kids = doc instanceof Container ? doc.children : undefined;
   if (kids?.length === 3 && kids.every((k) => k instanceof Container)) return { parent: doc as Container, chat: kids[2] };

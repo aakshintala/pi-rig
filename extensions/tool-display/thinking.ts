@@ -7,9 +7,9 @@
 // the group summary's "thought ·" stands in for it. Shown thinking gets a restyled
 // label line. Only the screen changes: the message object is never touched.
 //
-// Guards: Pi 0.87.x only, and the children must match exactly what Pi 0.87 builds for
-// the message; on any mismatch the render is left as Pi made it, and on a throw Pi's
-// own children are rebuilt.
+// Guards: the children must match exactly what Pi builds for the message; on any
+// mismatch the render is left as Pi made it, and on a throw Pi's own children
+// are rebuilt.
 import { AssistantMessageComponent, VERSION } from "@earendil-works/pi-coding-agent";
 import { Container, Markdown, MouseRegion, Spacer, Text } from "@earendil-works/pi-tui";
 import { thinkingShown } from "../../shared/tool-display/index.ts";
@@ -113,9 +113,9 @@ function restyle(self: any, message: any) {
   for (const k of keep) box.addChild(k);
 }
 
-/** Installs the patch for `owner`; false when this Pi is not one it was verified on. */
-export function useHiddenThinking(owner: object, piVersion: string = VERSION): boolean {
-  if (!/^0\.87\./.test(piVersion) || typeof proto.updateContent !== "function") return false;
+/** Installs the patch for `owner`; false when Pi's message component has no patchable updateContent. */
+export function useHiddenThinking(owner: object, _piVersion: string = VERSION): boolean {
+  if (typeof proto.updateContent !== "function") return false;
   let patch: Patch | undefined = proto[MARK];
   if (!patch) {
     const original = proto.updateContent;

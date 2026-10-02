@@ -25,10 +25,12 @@ async function waitForText(tui, text) {
   assert.ok(tui.screen().includes(text), `expected ${text} in screen:\n${tui.screen()}`);
 }
 
-// The chat, the editor, what is under it, and the footer.
+// The chat on top, blank fill, then the dock (border, editor, what is under it, footer)
+// pinned to the bottom rows: fullscreen.
 const screen = (chat, editor = "", below = []) => {
-  const lines = [...chat, BORDER, editor, BORDER, ...below, ...FOOTER];
-  return "\n" + [...lines, ...Array(ROWS - lines.length).fill("")].join("\n");
+  const dock = [BORDER, editor, BORDER, ...below, ...FOOTER];
+  const lines = [...chat, ...Array(ROWS - dock.length - chat.length).fill(""), ...dock];
+  return "\n" + lines.join("\n");
 };
 
 // `keybindings: null` starts pi with its default keybindings, which bind Ctrl+B to cursor left.
@@ -122,7 +124,13 @@ test("FleetView keeps all 6 lines for rows while a command can be backgrounded",
 });
 
 test("Ctrl+B is not taken from an overlay", async (t) => {
-  const tui = await start(t);
+  // Regular mode by design: the log viewer is only an overlay there. In fullscreen the
+  // viewer sits in the chat area and Ctrl+B reaches Pi's editor, which backgrounds.
+  const tui = await start(t, undefined, ["--tui-mode", "regular"]);
+  const regularScreen = (chat, editor = "", below = []) => {
+    const lines = [...chat, BORDER, editor, BORDER, ...below, ...FOOTER];
+    return "\n" + [...lines, ...Array(ROWS - lines.length).fill("")].join("\n");
+  };
   await tui.fx({ add: "j", kind: "shell", label: "build" }, { fg: "a" });
   const overlay = (bottom) => "\n" + [" shell build · 0s · esc back", ...Array(ROWS - 2).fill(""), bottom].join("\n");
   tui.keys("Down", "Down", "Enter"); // the shared shells row: a picker over the running shells opens
@@ -134,14 +142,14 @@ test("Ctrl+B is not taken from an overlay", async (t) => {
   tui.type("hi");
   await tui.waitForScreen(overlay("› hi"));
   tui.keys("Escape");
-  await tui.waitForScreen(screen([""], "", [" ● main", "   1 shell running in background"]));
+  await tui.waitForScreen(regularScreen([""], "", [" ● main", "   1 shell running in background"]));
   assert.deepEqual(tui.events().filter((e) => e.startsWith("bg:")), []);
   tui.keys("C-b");
   await tui.waitForEvent("bg:a");
 });
 
 test("Ctrl+B backgrounds while FleetView has focus on an item shown in the chat area", async (t) => {
-  const tui = await start(t, undefined, ["--tui-mode", "fullscreen"]);
+  const tui = await start(t);
   await tui.fx({ add: "j", kind: "shell", label: "build" }, { fg: "a" });
   // Fullscreen: the item takes the chat area, FleetView keeps focus on its row (#136), and Pi's editor keeps TUI focus.
   const viewing = (below) => {

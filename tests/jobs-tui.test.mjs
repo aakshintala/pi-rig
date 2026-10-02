@@ -33,7 +33,6 @@ async function waitForText(tui, text) {
 test("a job is FleetView's shells row; the picker opens its log viewer, x stops it from the picker, and the row leaves when it finishes", async (t) => {
   const tui = await startTui(t, {
     extensions: EXTENSIONS,
-    args: ["--tui-mode", "fullscreen"],
     replies: [
       [{ type: "toolCall", id: "c1", name: "bash", arguments: { command: "sh job.sh", run_in_background: true } }],
       "started",

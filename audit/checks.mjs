@@ -68,10 +68,10 @@ export function gate(snap, lifecycle, budgets) {
   if (rpt.duplicateModels.length > 0) failures.push(`duplicate models: ${rpt.duplicateModels.join(", ")}`);
   if (rpt.skills > budgets.maxSkills) failures.push(`skills budget exceeded: ${rpt.skills} > ${budgets.maxSkills}`);
   // The rig's own command names match budgets.commands exactly (#69, spec #32 /rig,
-  // spec #36 the command ports). Pi's bundled commands (path `<inline:…>`, such as
-  // /llama) are left out.
+  // spec #36 the command ports). Pi's bundled commands are left out: `<inline:…>`
+  // before Pi 1.0.0, `builtin:…` after (such as /llama and /mcp).
   if (snap.commands) {
-    const rig = JSON.stringify(snap.commands.filter((c) => !String(c.path).startsWith("<")).map((c) => c.name).sort());
+    const rig = JSON.stringify(snap.commands.filter((c) => !String(c.path).startsWith("<") && !String(c.path).startsWith("builtin:")).map((c) => c.name).sort());
     if (!Array.isArray(budgets.commands)) failures.push("budgets.json has no commands list");
     else if (rig !== JSON.stringify([...budgets.commands].sort())) failures.push(`commands are ${rig}, budgets.json expects ${JSON.stringify([...budgets.commands].sort())}`);
   }

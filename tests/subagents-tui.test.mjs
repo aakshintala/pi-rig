@@ -68,10 +68,11 @@ test("a nested agent's row is indented under its parent", async (t) => {
 
 const ROWS = 24;
 const BORDER = "─".repeat(80);
-// Regular mode: a blank row, the chat, the editor, FleetView (main and `row`, or rows), the footer.
+// Fullscreen: a blank row, the chat, blank fill, the dock (editor borders, FleetView's
+// main and `row`, or rows, the footer) pinned to the bottom.
 function screen(chat, row, footer) {
-  const lines = ["", ...chat, BORDER, "", BORDER, " ● main", ...[row].flat(), "~/cwd", footer];
-  return "\n" + [...lines, ...Array(ROWS - lines.length).fill("")].join("\n");
+  const dock = [BORDER, "", BORDER, " ● main", ...[row].flat(), "~/cwd", footer];
+  return "\n" + ["", ...chat, ...Array(ROWS - 1 - chat.length - dock.length).fill(""), ...dock].join("\n");
 }
 
 // The transcript viewer (#68) in fullscreen mode, where it takes the chat area. Parent and
@@ -92,7 +93,7 @@ function viewing(content, rows, footer) {
 }
 
 async function transcriptTui(t, replies, kid) {
-  const tui = await startTui(t, { extensions: WITH_DISPLAY, args: ["--tui-mode", "fullscreen"], replies });
+  const tui = await startTui(t, { extensions: WITH_DISPLAY, replies });
   t.after(() => assert.deepEqual(liveGroup(tui.pid), []));
   tui.agentDir = join(dirname(tui.home), "agent");
   writeFileSync(join(tui.cwd, "notes.md"), "one\ntwo\n");

@@ -17,7 +17,8 @@ test("tmux harness: pi shows a scripted reply", async (t) => {
   tui.keys("Enter");
   await tui.waitForEvent("agent_end");
 
-  // All 24 rows. Row 1 is blank: pi's quiet-startup header.
+  // All 24 rows of fullscreen mode. Row 1 is blank: pi's quiet-startup header; the
+  // chat fills the top, blank rows fill the middle and the dock is pinned to the bottom.
   const screen = `
 
  say hello
@@ -25,26 +26,27 @@ test("tmux harness: pi shows a scripted reply", async (t) => {
 
  Hello from the scripted model.
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 ────────────────────────────────────────────────────────────────────────────────
 
 ────────────────────────────────────────────────────────────────────────────────
 ~/cwd
-↑4 ↓8 W4 CH0.0% 0.0%/128k (auto)                                       harness-1
-
-
-
-
-
-
-
-
-
-
-
-
-`;
+↑4 ↓8 W4 CH0.0% 0.0%/128k (auto)                                       harness-1`;
   await tui.waitForScreen(screen);
 
-  // A template missing the blank bottom rows is not the full screen.
-  await assert.rejects(tui.waitForScreen(screen.trimEnd()), /rows/);
+  // A template missing the blank middle rows is not the full screen.
+  const short = screen.replace(" Hello from the scripted model.\n\n", " Hello from the scripted model.\n");
+  await assert.rejects(tui.waitForScreen(short), /rows/);
 });

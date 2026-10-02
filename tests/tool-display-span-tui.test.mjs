@@ -22,8 +22,13 @@ const think = (t) => ({ type: "thinking", thinking: t });
 const text = (t) => ({ type: "text", text: t });
 
 const ROWS = 50;
-// A full screen: `top` rows, then blank rows.
-const rows = (...top) => "\n" + [...top, ...Array(ROWS - top.length).fill("")].join("\n");
+// Fullscreen mode: the chat on top, blank rows in the middle and the dock pinned to
+// the bottom of the pane's 50 rows.
+const rows = (...top) => {
+  const dock = 6; // border, editor, border, cwd, footer
+  const chat = top.slice(0, -dock);
+  return "\n" + [...chat, ...Array(ROWS - top.length).fill(""), ...top.slice(-dock)].join("\n");
+};
 const footer = (usage) => ["", RULE, "", RULE, "~/cwd", usage];
 
 async function start(t, replies, { extensions = [TOOL_DISPLAY], tools = "read,edit,write", hide = false } = {}) {
@@ -93,8 +98,12 @@ test("a steer delivered at the end of a turn splits the run", async (t) => {
   tui.type("also this");
   tui.keys("Enter");
   // A running group shows the static ⏺ summary at once; the wait fixture keeps Pi's own indicator still.
-  await tui.waitForScreen(rows("", " go", "", "", " ⏺ Waited on 1 file", "", " Steering: also this", ` ↳ ${process.platform === "darwin" ? "Option" : "Alt"}+Up to edit all queued messages`, "",
-    `── ~ Working ${"─".repeat(67)}`, "", RULE, "~/cwd", "↑2 ↓5 W2 CH0.0% 0.0%/128k (auto)                                       harness-1"));
+  const steer = ` ↳ ${process.platform === "darwin" ? "Option" : "Alt"}+Up to edit all queued messages`;
+  await tui.waitForScreen("\n" + [
+    "", " go", "", "", " ⏺ Waited on 1 file",
+    ...Array(37).fill(""),
+    " Steering: also this", steer, "", `── ~ Working ${"─".repeat(67)}`, "", RULE, "~/cwd", "↑2 ↓5 W2 CH0.0% 0.0%/128k (auto)                                       harness-1",
+  ].join("\n"));
   writeFileSync(join(tui.cwd, "go"), "");
   await tui.waitForEvent("agent_end");
   await tui.waitForScreen(rows("", " go", "", "", " ⏺ Waited on 1 file", "", "", " also this", "", "", " ⏺ Read 1 file", "", " Done.",
@@ -108,8 +117,12 @@ test("ask_user splits the run", async (t) => {
     tools: "read,ask_user",
   });
   await tui.waitForEvent("message_end", 4);
-  await tui.waitForScreen(rows("", " go", "", "", " ⏺ Read 1 file", "", " ⏺ Ask User(pick)", "", RULE, "Which?", "", "→ 1. Alpha", "  2. Beta",
-    "  3. Type your own answer", "", "  ↑↓ move · Enter choose · Esc cancel", RULE, "~/cwd", "↑19 ↓34 R2 W19 CH5.6% 0.1%/128k (auto)                                 harness-1"));
+  await tui.waitForScreen("\n" + [
+    "", " go", "", "", " ⏺ Read 1 file", "", " ⏺ Ask User(pick)",
+    ...Array(32).fill(""),
+    RULE, "Which?", "", "→ 1. Alpha", "  2. Beta", "  3. Type your own answer", "",
+    "  ↑↓ move · Enter choose · Esc cancel", RULE, "~/cwd", "↑19 ↓34 R2 W19 CH5.6% 0.1%/128k (auto)                                 harness-1",
+  ].join("\n"));
   tui.keys("Enter");
   await tui.waitForEvent("agent_end");
   await tui.waitForScreen(rows("", " go", "", "", " ⏺ Read 1 file", "", " ⏺ Ask User(pick)", "   ⎿  pick: Alpha", "", " ⏺ Read 1 file", "", " Done.",

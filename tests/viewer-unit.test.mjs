@@ -78,7 +78,7 @@ test("a log source keeps the latest lines", (t) => {
   assert.equal(lines.at(-1), `l${MAX_LINES + 4}`);
 });
 
-test("the chat lookup needs the tested Pi version and document shape", () => {
+test("the chat lookup needs the document shape, not the Pi version", () => {
   const doc = new Container();
   const chat = new Container();
   doc.addChild(new Container());
@@ -87,13 +87,26 @@ test("the chat lookup needs the tested Pi version and document shape", () => {
   const tui = { children: [doc, new Container()] };
 
   assert.deepEqual(findChat(tui, TESTED_PI), { parent: doc, chat });
-  assert.equal(findChat(tui, "0.88.0"), undefined, "another Pi version");
+  assert.deepEqual(findChat(tui, "0.88.0"), { parent: doc, chat }, "another Pi version");
+  assert.deepEqual(findChat(tui, "1.0.0"), { parent: doc, chat }, "Pi 1.0.0");
   assert.equal(findChat({ children: [] }, TESTED_PI), undefined, "no document");
   assert.equal(findChat({ children: [new Text("x")] }, TESTED_PI), undefined, "first child not a container");
   doc.addChild(new Container());
   assert.equal(findChat(tui, TESTED_PI), undefined, "four children");
   doc.children.splice(2, 2, new Text("chat"));
   assert.equal(findChat(tui, TESTED_PI), undefined, "chat not a container");
+});
+
+test("Pi 1.0.0's tree finds the chat without version help", () => {
+  const doc = new Container();
+  const chat = new Container();
+  doc.addChild(new Container());
+  doc.addChild(new Container());
+  doc.addChild(chat);
+  // 7 children, the editor at index 4, the documentContainer first.
+  const editor = { onSubmit() {}, getText() {}, handleInput() {} };
+  const tui = { children: [doc, new Container(), new Container(), new Container(), { children: [editor] }, new Container(), new Container()] };
+  assert.deepEqual(findChat(tui, "1.0.0"), { parent: doc, chat });
 });
 
 test("one read takes at most MAX_READ bytes and marks what it skipped", (t) => {

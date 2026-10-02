@@ -10,8 +10,10 @@ import { liveGroup, startTui } from "./helpers/tui.mjs";
 
 const root = (p) => fileURLToPath(new URL(`../${p}`, import.meta.url));
 const ROWS = 36;
-// Pads to the full pane. Each template starts with a newline, which waitForScreen drops.
-const screen = (text) => text + "\n".repeat(ROWS + 1 - text.split("\n").length);
+// Fullscreen mode: pane row 1 is pi's blank quiet-startup row (dropped by waitForScreen's
+// leading-newline rule), the widget is the chat, blank rows go in the middle and the dock
+// is pinned to the bottom rows. Templates cover pane rows 2..36 exactly.
+const screen = (text) => "\n\n" + text.replace(/\n$/, "");
 
 const GRAPH_ALL_TIME = screen(`
 
@@ -52,6 +54,7 @@ $19.6 ┤                                                                    ⢰
 const GRAPH_TODAY = screen(`
 
 
+
 ────────────────────────────────────────────────────────────────────────────────
 
 Usage   [Graphs]  Table   [v]
@@ -87,6 +90,19 @@ $16.9 ┤                                                                  ⢠�
 const TABLE_TODAY = screen(`
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 ────────────────────────────────────────────────────────────────────────────────
 
 Usage    Graphs  [Table]  [v]
@@ -108,6 +124,18 @@ Total                             1        3    $31.0       50
 0.0%/128k (auto)                                                       harness-1`);
 
 const TABLE_EXPANDED = screen(`
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ────────────────────────────────────────────────────────────────────────────────
@@ -132,6 +160,34 @@ Total                             1        3    $31.0       50
 0.0%/128k (auto)                                                       harness-1`);
 
 const CLOSED = screen(`
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ────────────────────────────────────────────────────────────────────────────────
 

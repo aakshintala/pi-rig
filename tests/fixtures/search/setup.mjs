@@ -6,6 +6,9 @@ import { execFileSync } from "node:child_process";
 import { FileFinder } from "@ff-labs/fff-node";
 import "../tool-display/pi-tui.mjs"; // before the extension, which draws with pi-tui
 const { searchExtension } = await import("../../../extensions/search/index.ts");
+const { rigSettings, } = await import("../../../shared/settings/index.ts");
+const { SETTINGS: SEARCH_SETTINGS } = await import("../../../extensions/search/index.ts");
+const { getAgentDir } = await import("@earendil-works/pi-coding-agent");
 
 const FIXTURE = new URL("./repo", import.meta.url).pathname;
 
@@ -59,13 +62,29 @@ export function tempRepo(t) {
   return dir;
 }
 
+// One isolated agent dir per process for the settings singleton (its root is fixed
+// by the first rigSettings call), removed with the last direct() session.
+let sharedDir = undefined;
+let sharedRefs = 0;
+
 // The extension against a minimal stand-in for Pi: start(cwd) emits session_start,
 // run(tool, args, signal) returns the result text, notices collects ctx.ui.notify.
-export function direct(t, load, opts) {
+// FFF is opted into per call (the product default is disabled): `disabled: true`
+// serves everything from the built-ins. The setting lives in a temp agent dir,
+// never the real ~/.pi/agent/rig.json.
+export function direct(t, load, opts = {}) {
+  const { disabled = false, ...rest } = opts;
+  sharedDir ??= realpathSync(mkdtempSync(join(tmpdir(), "pi-rig-search-direct-")));
+  sharedRefs++;
+  t.after(() => {
+    if (--sharedRefs === 0) rmSync(sharedDir, { recursive: true, force: true });
+  });
+  process.env.PI_CODING_AGENT_DIR = sharedDir;
+  rigSettings(getAgentDir()).declare("search", SEARCH_SETTINGS).set("disabled", disabled);
   const tools = {};
   const on = {};
   const notices = [];
-  searchExtension(load, opts)({ on: (e, h) => (on[e] = h), registerTool: (d) => (tools[d.name] = d) });
+  searchExtension(load, rest)({ on: (e, h) => (on[e] = h), registerTool: (d) => (tools[d.name] = d) });
   const ctx = { cwd: "", ui: { notify: (m) => notices.push(m) } };
   t.after(() => on.session_shutdown());
   return {
