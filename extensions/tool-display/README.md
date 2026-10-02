@@ -94,8 +94,8 @@ Expanded, each call looks like this:
   group like text does. Ctrl+T regroups the calls on screen.
 - **Screen only.** Saved sessions and the model's context are unchanged.
 - **Guarded Pi patch** (one of the rig's three, #1). It wraps
-  `AssistantMessageComponent.prototype.updateContent` on Pi 0.87.x only, and
-  only when the message's children are exactly what Pi 0.87 builds; anything
+  `AssistantMessageComponent.prototype.updateContent`, and
+  only when the message's children match the expected shape; anything
   else, or an error while restyling, keeps Pi's own render. A thinking block
   you clicked open or closed keeps Pi's render; the message's other blocks are
   still restyled. The same wrapper tells the tool groups whether the message's

@@ -173,9 +173,8 @@ const INSTALL = Symbol.for("pi-rig.inline-skills.install");
  * Pi's main editor: the default editor or one set by setEditorComponent. Pi gives
  * either its app actions; a CustomEditor mounted by ui.custom() has none.
  */
-function isMainEditor(editor: any, version: string): boolean {
+function isMainEditor(editor: any, _version?: string): boolean {
   return (
-    version.startsWith("0.87.") &&
     editor instanceof CustomEditor &&
     typeof (editor as any).tryTriggerAutocomplete === "function" &&
     typeof (editor as any).isShowingAutocomplete === "function" &&
@@ -212,7 +211,14 @@ export function editorPatch(version = VERSION) {
     target = undefined;
   };
   const ensure = (tui: any): boolean => {
-    const editor = tui?.children?.[4]?.children?.[0];
+    // Pi's editor slot moves between versions: walk the root's children for the
+    // container whose sole child is the main editor, instead of a fixed index.
+    const slots: any[] = Array.isArray(tui?.children) ? tui.children : [];
+    const soles = slots.flatMap((slot) => {
+      const kids = slot?.children;
+      return Array.isArray(kids) && kids.length === 1 ? [kids[0]] : [];
+    });
+    const editor = (target && soles.includes(target) ? target : undefined) ?? soles.find((c) => isMainEditor(c));
     if (editor && editor === target) return true;
     if (!isMainEditor(editor, version) || editor[INSTALL]) return false;
     restore();

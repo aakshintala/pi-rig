@@ -37,5 +37,4 @@ The list opens on typing through a guarded patch of Pi's main editor instance
 It wraps whichever main editor sits in Pi's editor slot, checked at session
 start and on each key, so it follows `/reload` and editors set by other
 extensions; panels in that slot are left alone. It is undone at session
-shutdown, and skipped when the Pi version is not 0.87 or the editor's shape
-differs, leaving `Tab`-only completion.
+shutdown, and skipped when the editor's shape differs, leaving `Tab`-only completion.

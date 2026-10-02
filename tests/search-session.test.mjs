@@ -12,7 +12,7 @@ const { searchExtension } = await import("../extensions/search/index.ts");
 // and returns the tool result texts.
 // home: true runs the session in $HOME, "link" in a $HOME that is a symlink to it.
 // setup(cwd) runs after the fixture is copied, before indexing.
-async function searchSession(t, { load = spyFFF().load, home = false, setup, wait } = {}) {
+async function searchSession(t, { load = spyFFF().load, home = false, setup, wait, disabled = false } = {}) {
   let api;
   const { session, faux, cwd } = await scriptedSession(t, {
     extensions: [
@@ -30,6 +30,13 @@ async function searchSession(t, { load = spyFFF().load, home = false, setup, wai
     ],
     tools: ["grep", "find"],
   });
+  // FFF is opted into per session (the product default is disabled), set before
+  // session_start. The settings singleton is rooted at this file's first temp
+  // agent dir, so every call here sets its value explicitly.
+  const { rigSettings } = await import("../shared/settings/index.ts");
+  const { SETTINGS: SEARCH_SETTINGS } = await import("../extensions/search/index.ts");
+  const { getAgentDir } = await import("@earendil-works/pi-coding-agent");
+  rigSettings(getAgentDir()).declare("search", SEARCH_SETTINGS).set("disabled", disabled);
   await session.bindExtensions({}); // emits session_start, as Pi's modes do
   const run = async (calls) => {
     faux.setResponses([
@@ -308,4 +315,16 @@ test("shutdown destroys the index, and a second shutdown is a no-op", async (t) 
   await session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" });
   await new Promise(setImmediate);
   assert.equal(spy.finders[0].isDestroyed, true); // the helper emits shutdown again in t.after
+});
+
+test("disabled serves grep and find from Pi's built-ins without an index", async (t) => {
+  const spy = spyFFF();
+  const { run } = await searchSession(t, { load: spy.load, disabled: true });
+  const r = await run([
+    ["grep", { pattern: "login" }],
+    ["find", { pattern: "*.js" }],
+  ]);
+  assert.deepEqual(r, ["src/auth.ts:1: export function login() {}", "lib/util.js"]);
+  assert.equal(spy.created, 0); // no index opened
+  assert.deepEqual(spy.calls, []); // every call took the fallback() path
 });

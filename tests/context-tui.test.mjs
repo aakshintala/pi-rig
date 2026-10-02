@@ -12,8 +12,10 @@ const ROWS = 30;
 // Pads to the full pane. Each template starts with a newline, which waitForScreen drops.
 const screen = (text) => text + "\n".repeat(ROWS + 1 - text.split("\n").length);
 const BORDER = "─".repeat(80);
+// Fullscreen: an empty chat fills the top, then the dock (border, editor, border, footer)
+// pinned to the bottom rows.
 const idle = (editor = "", below = []) =>
-  screen(["", "", BORDER, editor, BORDER, ...below, "~/cwd", "0.9%/128k (auto)                                                       harness-1"].join("\n"));
+  "\n" + [...Array(ROWS - 5 - below.length).fill(""), BORDER, editor, BORDER, ...below, "~/cwd", "0.9%/128k (auto)                                                       harness-1"].join("\n");
 
 const USAGE = screen(`
 ────────────────────────────────────────────────────────────────────────────────

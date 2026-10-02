@@ -17,10 +17,20 @@ const BORDER = "─".repeat(80);
 const KEYS = " Enter to view · x to stop · ctrl+x ctrl+k to stop all agents"; // under the rows while FleetView has focus (#141)
 const FOOTER = ["~/cwd", "0.0%/128k (auto)                                                       harness-1"];
 
-// Regular mode before any prompt: blank header row, editor, FleetView, footer.
-const idle = (fleet = [], editor = "") => pad(["", BORDER, editor, BORDER, ...fleet, ...FOOTER]);
+// Fullscreen mode: the chat area on top; editor, FleetView and footer pinned to the bottom.
+const screen = (chat, fleet, { editor = "", footer = FOOTER } = {}) => {
+  const dock = [BORDER, ...[editor].flat(), BORDER, ...fleet, ...footer];
+  return "\n" + [...chat, ...Array(ROWS - dock.length - chat.length).fill(""), ...dock].join("\n");
+};
+// Regular mode's dock stacks from the top with blanks below, unlike fullscreen's bottom pin.
+const idle = (fleet = [], editor = "") => screen([], fleet, { editor });
+// Regular mode: the dock stacks from the top and blanks fill below it.
+const regular = (fleet = []) =>
+  "\n" + ["", BORDER, "", BORDER, ...fleet, ...FOOTER, ...Array(ROWS).fill("")].slice(0, ROWS).join("\n");
 // waitForScreen drops one leading newline, so a blank first row survives.
 const pad = (lines) => "\n" + [...lines, ...Array(ROWS - lines.length).fill("")].join("\n");
+// A dock (no chat) pinned to the bottom rows.
+const dockPad = (dock) => pad([...Array(ROWS - dock.length).fill(""), ...dock]);
 
 async function start(t, options = {}) {
   const tui = await startTui(t, { extensions: EXTENSIONS, ...options });
@@ -71,7 +81,7 @@ async function waitForText(tui, text) {
 }
 
 test("running shells share one row; Enter lists only running shells and opens a log", async (t) => {
-  const tui = await start(t, { args: ["--tui-mode", "fullscreen"] });
+  const tui = await start(t);
   await tui.fx(
     { add: "a", kind: "shell", label: "build" },
     { add: "b", kind: "shell", label: "lint" },
@@ -98,7 +108,7 @@ test("running shells share one row; Enter lists only running shells and opens a 
 });
 
 test("a log longer than the screen scrolls the header away; FleetView's own line gives the way back once the job is stopped while still viewed (#161)", async (t) => {
-  const tui = await start(t, { args: ["--tui-mode", "fullscreen"] });
+  const tui = await start(t);
   const log = join(tui.home, "job.log");
   writeFileSync(log, Array.from({ length: 60 }, (_, i) => `line${i}`).join("\n") + "\n");
   await tui.fx({ add: "a", kind: "shell", label: "build", log });
@@ -117,15 +127,15 @@ test("a log longer than the screen scrolls the header away; FleetView's own line
 });
 
 test("the shell picker opens a log in regular mode", async (t) => {
-  const tui = await start(t);
+  const tui = await start(t, { args: ["--tui-mode", "regular"] });
   await tui.fx({ add: "a", kind: "shell", label: "build" });
-  await tui.waitForScreen(idle([" ● main", "   1 shell running in background"]));
+  await tui.waitForScreen(regular([" ● main", "   1 shell running in background"]));
   tui.keys("Down", "Down", "Enter");
   await waitForText(tui, "Running shells");
   tui.keys("Enter");
   await waitForText(tui, "shell build · 0s · esc back");
   tui.keys("Escape");
-  await tui.waitForScreen(idle([" ● main", "   1 shell running in background"]));
+  await tui.waitForScreen(regular([" ● main", "   1 shell running in background"]));
 });
 
 test("x on the shell row lets you stop one running shell", async (t) => {
@@ -139,7 +149,7 @@ test("x on the shell row lets you stop one running shell", async (t) => {
 });
 
 test("a click on an agent's activity line opens that agent", async (t) => {
-  const tui = await start(t, { args: ["--tui-mode", "fullscreen"] });
+  const tui = await start(t);
   await tui.fx({ add: "a", kind: "agent", label: "scout", activity: "reading", transcript: "agent transcript" });
   await waitForText(tui, "└─ reading");
   const y = tui.screen().split("\n").findIndex((line) => line.includes("└─ reading")) + 1;
@@ -194,7 +204,10 @@ test("finished rows leave 10 s after they finish, without a prompt; a prompt doe
   tui.type("go");
   tui.keys("Enter");
   await tui.waitForEvent("agent_end");
-  const chat = (fleet) => pad(["", " go", "", "", " ok", "", BORDER, "", BORDER, ...fleet, "~/cwd", "↑2 ↓1 W2 CH0.0% 0.0%/128k (auto)                                       harness-1"]);
+  const chat = (fleet) =>
+    screen(["", " go", "", "", " ok", ""], fleet, {
+      footer: ["~/cwd", "↑2 ↓1 W2 CH0.0% 0.0%/128k (auto)                                       harness-1"],
+    });
   await tui.waitForScreen(chat([
     " ● main",
     "   agent scout · done 5s",
@@ -283,16 +296,16 @@ test("detail fields come before the status and drop from the right when the row 
   const narrow = await start(t, { cols: 60 });
   await narrow.fx(...ops);
   const border = "─".repeat(60);
-  await narrow.waitForScreen(pad([
-    "", border, "", border,
-    " ● main",
-    "   agent scout · claude-sonnet-4-5 · high · done 2m13s",
-    "    └─ STATUS: DONE",
-    "   agent a-very-long-agent-label-that-fills-the-row · 2m13s",
-    "   1 shell running in background",
-    "~/cwd",
-    "0.0%/128k (auto)                                   harness-1",
-  ]));
+  await narrow.waitForScreen(
+    dockPad([border, "", border, " ● main",
+      "   agent scout · claude-sonnet-4-5 · high · done 2m13s",
+      "    └─ STATUS: DONE",
+      "   agent a-very-long-agent-label-that-fills-the-row · 2m13s",
+      "   1 shell running in background",
+      "~/cwd",
+      "0.0%/128k (auto)                                   harness-1",
+    ]),
+  );
 });
 
 test("arrow keys at an empty prompt move through FleetView and past either end; Esc returns", async (t) => {
@@ -378,30 +391,13 @@ test("notices are one compact themed line; a failure shows its error", async (t)
   );
   // One run: pi's one-at-a-time steering takes the third notice at the next step.
   await tui.waitForEvent("agent_end");
-  await tui.waitForScreen(pad([
-    "",
-    " ✓ agent scout · done 5s · found 3 files",
-    "",
-    " ✗ shell npm test · failed 7s",
-    "   exit 1",
-    "   Error: boom",
-    "",
-    " noted",
-    "",
-    " ● monitor ci watch · 7s · build 42 passed",
-    "",
-    " noted too",
-    "",
-    BORDER,
-    "",
-    BORDER,
-    " ● main",
-    "   agent scout · done 5s",
-    "    └─ found 3 files second line",
-    "   monitor ci watch · 7s",
-    "~/cwd",
-    "↑26 ↓5 R16 W26 CH44.4% 0.0%/128k (auto)                                harness-1",
-  ]));
+  await tui.waitForScreen(
+    screen(
+      ["", " ✓ agent scout · done 5s · found 3 files", "", " ✗ shell npm test · failed 7s", "   exit 1", "   Error: boom", "", " noted", "", " ● monitor ci watch · 7s · build 42 passed", "", " noted too", ""],
+      [" ● main", "   agent scout · done 5s", "    └─ found 3 files second line", "   monitor ci watch · 7s"],
+      { footer: ["~/cwd", "↑26 ↓5 R16 W26 CH44.4% 0.0%/128k (auto)                                harness-1"] },
+    ),
+  );
 });
 
 test("x stops the selected running or queued row at once; on a finished row or main it does nothing", async (t) => {
@@ -459,7 +455,7 @@ for (const cols of [30, 60]) {
     );
     const border = "─".repeat(cols);
     const footer = "0.0%/128k (auto)".padEnd(cols - "harness-1".length) + "harness-1";
-    await tui.waitForScreen(pad(["", border, "", border, " ● main", ...ROWS_AT[cols], "~/cwd", footer]));
+    await tui.waitForScreen(dockPad([border, "", border, " ● main", ...ROWS_AT[cols], "~/cwd", footer]));
   });
 }
 const ROWS_AT = {

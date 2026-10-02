@@ -48,10 +48,11 @@ async function started(t, tui) {
   t.after(() => assert.deepEqual(liveGroup(tui.pgid), [], "the command's group is gone"));
 }
 
-// The chat, the editor's top border, the rows under the editor, and the footer's usage line.
+// Fullscreen mode: the chat on top; the editor (its top border, a blank row, its bottom
+// border), what is under the editor, and the footer pinned to the bottom rows.
 const screen = (chat, top, below, usage) => {
-  const lines = [...chat, top, "", BORDER, ...below, "~/cwd", usage.padEnd(COLS - "harness-1".length) + "harness-1"];
-  return "\n" + [...lines, ...Array(ROWS - lines.length).fill("")].join("\n");
+  const dock = [top, "", BORDER, ...below, "~/cwd", usage.padEnd(COLS - "harness-1".length) + "harness-1"];
+  return "\n" + [...chat, ...Array(ROWS - dock.length - chat.length).fill(""), ...dock].join("\n");
 };
 const GO = ["", " go", "", ""];
 
@@ -66,7 +67,10 @@ function watchUnderEditor(tui) {
   const sample = async () => {
     while (on) {
       const rows = tui.screen().split("\n");
-      seen.add(JSON.stringify(rows.slice(rows.lastIndexOf(BORDER) + 1, rows.indexOf("~/cwd"))));
+      const bottom = rows.lastIndexOf(BORDER);
+      const foot = rows.indexOf("~/cwd");
+      // A partial-paint capture can lack the borders entirely; only well-formed layouts count.
+      if (bottom >= 0 && foot > bottom) seen.add(JSON.stringify(rows.slice(bottom + 1, foot)));
       await delay(10); // sampling interval, not a sync point
     }
   };
@@ -135,7 +139,8 @@ test("while Ctrl+B still moves the cursor left, a running call shows its elapsed
   const tui = await start(t, [bash(LONG), "finished"], null); // Pi's default keybindings
   await started(t, tui);
   // FleetView's warning about Ctrl+B names a temporary path, so match rows, not the screen.
-  await poll(() => tui.screen().includes(` ⏺ Ran 1 shell command\n ⏺ Bash(${LONG})\n   ⎿  0s\n\n── ● Working`), "the running call with its elapsed time");
+  // Blank fill separates the chat from the pinned dock in fullscreen.
+  await poll(() => /   ⎿  0s\n+── ● Working/.test(tui.screen()), "the running call with its elapsed time");
   assert.ok(!tui.screen().includes("ctrl+b to run in background"), tui.screen());
   writeFileSync(join(tui.cwd, "done"), "");
   await tui.waitForEvent("agent_end");

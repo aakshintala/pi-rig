@@ -18,7 +18,6 @@ const bottom = (screen) => {
 };
 
 async function openRig(t, args = []) {
-  const fit = args.includes("fullscreen") ? bottom : (s) => s;
   const tui = await startTui(t, { extensions, args });
   t.after(() => assert.deepEqual(liveGroup(tui.pid), []));
   const file = () => {
@@ -26,7 +25,7 @@ async function openRig(t, args = []) {
     return existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : undefined;
   };
   tui.type("/rig");
-  await tui.waitForScreen(fit(rows(`
+  await tui.waitForScreen(bottom(rows(`
 
 ────────────────────────────────────────────────────────────────────────────────
 /rig
@@ -39,7 +38,7 @@ ${FOOTER}`, 17)));
 
 const alpha = ({ cursor = 0, enabled = "true", count = "10", mode = "fast", description = "Turn alpha on. Default: true." } = {}) => {
   const row = (i, label, value) => `${i === cursor ? "→ " : "  "}${label}${value}`;
-  return rows(`
+  return bottom(rows(`
 
  [alpha]  beta
 
@@ -51,10 +50,10 @@ ${row(2, "mode     ", mode)}
 
   Enter/Space to change · Esc to cancel
   ←/→ to switch tab · r to reset to default
-${FOOTER}`, 11);
+${FOOTER}`, 11));
 };
 
-const editor = (tabs, key, description, input, error) => rows(`
+const editor = (tabs, key, description, input, error) => bottom(rows(`
 
  ${tabs}
 
@@ -64,7 +63,7 @@ ${description}
 >${input ? ` ${input}` : ""}
 ${error ? `${error}\n` : ""}
   Enter to save · Esc to go back
-${FOOTER}`, error ? 12 : 13);
+${FOOTER}`, error ? 12 : 13));
 const countEditor = (input, error) => editor("[alpha]  beta", "count", "How many alphas. Default: 10.", input, error);
 
 test("/rig opens a tab per section with settings and switches tabs with Left/Right", async (t) => {
@@ -72,7 +71,7 @@ test("/rig opens a tab per section with settings and switches tabs with Left/Rig
   // gamma declares no settings, so it has no tab.
   await tui.waitForScreen(alpha());
   tui.keys("Right");
-  const beta = rows(`
+  const beta = bottom(rows(`
 
   alpha  [beta]
 
@@ -83,7 +82,7 @@ test("/rig opens a tab per section with settings and switches tabs with Left/Rig
 
   Enter/Space to change · Esc to cancel
   ←/→ to switch tab · r to reset to default
-${FOOTER}`, 12);
+${FOOTER}`, 12));
   await tui.waitForScreen(beta);
   tui.keys("Right");
   await tui.waitForScreen(alpha());
@@ -138,9 +137,9 @@ test("/rig edits save to rig.json and reach the extension; invalid input is refu
 });
 
 test("/rig: r resets the row a mouse click selected", async (t) => {
-  // Pi reads the mouse only in fullscreen.
-  const { tui } = await openRig(t, ["--tui-mode", "fullscreen"]);
-  await tui.waitForScreen(bottom(alpha()));
+  // Pi reads the mouse in its default fullscreen mode.
+  const { tui } = await openRig(t);
+  await tui.waitForScreen(alpha());
   // A click selects `mode` and cycles its value.
   tui.click(4, tui.screen().split("\n").indexOf("  mode     fast") + 1);
   await tui.waitForEvent("alpha.mode=slow");
@@ -174,13 +173,13 @@ test("/rig: an edit clears the open-enum editor's refusal", async (t) => {
 });
 
 test("/rig: a click below the last row selects nothing, and r still resets the selected row", async (t) => {
-  const { tui } = await openRig(t, ["--tui-mode", "fullscreen"]);
-  await tui.waitForScreen(bottom(alpha()));
+  const { tui } = await openRig(t);
+  await tui.waitForScreen(alpha());
   const modeRow = tui.screen().split("\n").indexOf("  mode     fast") + 1;
   tui.click(4, modeRow);
   await tui.waitForEvent("alpha.mode=slow");
   const mode = { cursor: 2, mode: "slow", description: "Alpha mode. Default: fast." };
-  await tui.waitForScreen(bottom(alpha(mode)));
+  await tui.waitForScreen(alpha(mode));
   tui.click(4, modeRow + 1); // the blank row under the list
   tui.keys("r");
   await tui.waitForEvent("alpha.mode=fast");
@@ -189,22 +188,22 @@ test("/rig: a click below the last row selects nothing, and r still resets the s
 });
 
 test("/rig: clicks do not reach the list behind an open editor", async (t) => {
-  const { tui, file } = await openRig(t, ["--tui-mode", "fullscreen"]);
-  await tui.waitForScreen(bottom(alpha()));
+  const { tui, file } = await openRig(t);
+  await tui.waitForScreen(alpha());
   // The list sits two rows under the tab row; the editor is drawn there instead.
   const tabRow = (tabs) => tui.screen().split("\n").indexOf(tabs) + 1;
   // Integer editor: a click where `mode` sits in the list.
   tui.keys("Down", "Enter");
-  const count = bottom(countEditor("", ""));
+  const count = countEditor("", "");
   await tui.waitForScreen(count);
   tui.click(4, tabRow(" [alpha]  beta") + 4);
   tui.type("7");
-  await tui.waitForScreen(bottom(countEditor("7", "")));
+  await tui.waitForScreen(countEditor("7", ""));
   tui.keys("Escape");
-  await tui.waitForScreen(bottom(alpha({ cursor: 1, description: "How many alphas. Default: 10." })));
+  await tui.waitForScreen(alpha({ cursor: 1, description: "How many alphas. Default: 10." }));
   // Open-enum editor: a click where `tone` sits in the list.
   tui.keys("Right", "Down", "e");
-  const tone = (input) => bottom(editor(" alpha  [beta]", "tone", "Beta tone. Default: low.", input, ""));
+  const tone = (input) => editor(" alpha  [beta]", "tone", "Beta tone. Default: low.", input, "");
   await tui.waitForScreen(tone(""));
   tui.click(4, tabRow("  alpha  [beta]") + 3);
   tui.type("7");

@@ -205,8 +205,8 @@ test("the editor patch skips any shape mismatch without throwing", () => {
     assert.equal(editorPatch().ensure(tui), false);
   }
   const { tui, type } = mounted();
-  assert.equal(editorPatch("0.88.0").ensure(tui), false, "another Pi version");
-  assert.equal(type("please /gr"), 0);
+  assert.equal(editorPatch("0.88.0").ensure(tui), true, "the version is ignored: the probe decides");
+  assert.equal(type("please /gr"), 1);
   assert.equal(editorPatch().ensure(mounted({ main: false }).tui), false, "a CustomEditor without Pi's app actions (a ui.custom panel)");
   delete tui.children[4].children[0].state;
   assert.equal(editorPatch().ensure(tui), false, "no editor state");

@@ -20,6 +20,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { FileFinder } from "@ff-labs/fff-node";
 import { plural, resultText, toolRenderers, type Summary } from "../../shared/tool-display/index.ts";
+import { rigSettings } from "../../shared/settings/index.ts";
 import { oneLine } from "../../shared/text/index.ts";
 
 type FinderClass = Pick<typeof FileFinder, "isAvailable" | "create">;
@@ -42,6 +43,10 @@ const searchStyle = (title: string, none: RegExp, found: (n: number) => string, 
   });
 const GREP_STYLE = searchStyle("Grep", /^No matches found$/, (n) => `Found ${n} ${plural(n, "line")}`, { verb: "searched", one: "pattern" });
 const FIND_STYLE = searchStyle("Find", /^No files found/, (n) => `Found ${n} ${plural(n, "file")}`, { verb: "found", many: "files" });
+
+export const SETTINGS = [
+  { key: "disabled", type: "boolean", default: true, description: "Serve grep and find with Pi's built-ins instead of the FFF index" },
+] as const;
 
 const SCAN_WAIT_MS = 5_000;
 const GREP_LIMIT = 100;
@@ -116,6 +121,10 @@ export function searchExtension(
   { wait = sleep }: { wait?: (ms: number, stop: AbortSignal) => Promise<unknown> } = {},
 ) {
   return (pi: ExtensionAPI) => {
+    const rig = rigSettings(getAgentDir());
+    // One live section per name: a child session's redeclare returns this same handle.
+    const section = rig.declare("search", SETTINGS);
+    const disabled = () => section.get("disabled") === true;
     // This session's hold on its root's finder; closed flips synchronously on shutdown or session switch.
     type Index = { finder: Promise<Finder | null>; root: string; closed: boolean };
     let index: Index | undefined;
@@ -149,7 +158,7 @@ export function searchExtension(
     // FFF searches are synchronous, so a finder still open here stays open for the call.
     async function ready(signal: AbortSignal | undefined): Promise<Finder | null> {
       const i = index;
-      if (!i) return null;
+      if (!i || disabled()) return null;
       const stop = new AbortController();
       const abort = () => stop.abort();
       signal?.addEventListener("abort", abort, { once: true });
@@ -187,7 +196,12 @@ export function searchExtension(
     function fallback(tool: typeof createGrepTool, ctx: ExtensionContext, args: Parameters<ReturnType<typeof createGrepTool>["execute"]>) {
       if (!noticed) {
         noticed = true;
-        ctx.ui.notify("grep and find: FFF unavailable, using Pi's built-in tools", "warning");
+        ctx.ui.notify(
+          disabled()
+            ? "grep and find: FFF index disabled (search.disabled), using Pi's built-in tools. Set search.disabled to false in rig.json to opt back in."
+            : "grep and find: FFF unavailable, using Pi's built-in tools",
+          "warning",
+        );
       }
       return tool(ctx.cwd).execute(...args) as Promise<Result>;
     }
@@ -196,6 +210,7 @@ export function searchExtension(
       close();
       noticed = false;
       root = realpath(ctx.cwd);
+      if (disabled()) return; // serve every call from Pi's built-ins via fallback()
       const s = shared().get(root) ?? { finder: open(root).catch(() => null), refs: 0 };
       s.refs++;
       shared().set(root, s);

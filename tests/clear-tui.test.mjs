@@ -11,26 +11,15 @@ test("/clear starts a new session with an empty transcript", async (t) => {
   t.after(() => assert.deepEqual(liveGroup(tui.pid), []));
   tui.type("ping");
   tui.keys("Enter");
-  await tui.waitForScreen(`
-
- ping
-
-
- pong
-
-${BORDER}
+  // Fullscreen: the chat on top (a leading blank, then the turn), blank fill, then the
+  // dock (border, editor, border, footer) pinned to the bottom rows.
+  await tui.waitForScreen(`\n\n ping\n\n\n pong\n` + "\n".repeat(14) + `${BORDER}
 
 ${BORDER}
 ~/cwd
-↑3 ↓1 W3 CH0.0% 0.0%/128k (auto)                                       harness-1` + "\n".repeat(13));
+↑3 ↓1 W3 CH0.0% 0.0%/128k (auto)                                       harness-1`);
   tui.type("/clear");
   tui.keys("Enter");
   await tui.waitForEvent("session_start", 2);
-  await tui.waitForScreen(`
-
-${BORDER}
-
-${BORDER}
-~/cwd
-0.0%/128k (auto)                                                       harness-1` + "\n".repeat(18));
+  await tui.waitForScreen("\n" + [...Array(19).fill(""), ...[BORDER, "", BORDER, "~/cwd", "0.0%/128k (auto)                                                       harness-1"]].join("\n"));
 });

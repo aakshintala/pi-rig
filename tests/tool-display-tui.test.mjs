@@ -39,8 +39,14 @@ const calls = (prompt, summary, failures) => `
 
  Done.
 `;
-// Pads a screen to the pane's 40 rows.
-const fill = (s) => s + "\n".repeat(41 - s.split("\n").length);
+// Fullscreen mode: the chat on top, blank rows in the middle and the dock pinned to
+// the bottom of the pane's 40 rows.
+const fill = (s) => {
+  const lines = s.replace(/^\n/, "").split("\n");
+  const dock = lines.length - 5; // the last 5 rows are the dock
+  const top = lines.slice(0, dock);
+  return "\n" + [...top, ...Array(40 - lines.length).fill(""), ...lines.slice(dock)].join("\n");
+};
 const RULE = "─".repeat(80);
 
 test("tool display: decorated built-ins grouped, errors folded, Ctrl+O shows each call and the edit diff from arguments", async (t) => {
@@ -52,6 +58,7 @@ test("tool display: decorated built-ins grouped, errors folded, Ctrl+O shows eac
   tui.keys("Enter");
   await tui.waitForEvent("agent_end");
   await tui.waitForScreen(fill(`${calls("go", "Read 1 file, edited 2 files +3 −2, wrote 1 file +6", "")}
+
 ${RULE}
 
 ${RULE}
@@ -105,10 +112,19 @@ ${RULE}
   tui.type("again");
   tui.keys("Enter");
   await tui.waitForEvent("agent_end", 2);
-  await tui.waitForScreen(fill(`${calls("again", "Read 1 file, edited 2 files, wrote 1 file +6", "")}
+  await tui.waitForScreen(fill(`
+
 
  ✓ New session started
 
+
+
+ again
+
+
+ ⏺ Read 1 file, edited 2 files, wrote 1 file +6
+
+ Done.
 
 ${RULE}
 

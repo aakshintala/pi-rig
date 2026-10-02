@@ -1,5 +1,5 @@
 {
-  "piVersion": "0.87.1",
+  "piVersion": "1.0.0",
   "maxPromptTokens": 3550,
   "maxSkills": 5,
   "commands": ["clear", "context", "quota", "rig", "skill:ponytail-audit", "theme", "todos", "usage"],

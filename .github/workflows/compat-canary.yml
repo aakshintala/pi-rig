@@ -1,0 +1,45 @@
+name: compat-canary
+# Early warning for Pi drift: same gates as CI, but against the latest Pi
+# instead of the pin. Files an issue on failure; never blocks merges.
+on:
+  schedule:
+    - cron: "0 6 */3 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+      - run: command -v tmux || (sudo apt-get update && sudo apt-get install -y tmux)
+      - run: sudo apt-get update && sudo apt-get install -y ripgrep fd-find
+      - run: npm ci
+      - name: float Pi to latest
+        run: npm install --no-save @earendil-works/pi-ai@latest @earendil-works/pi-coding-agent@latest
+      - run: npm test
+      - name: audit against the floated Pi (not the pin)
+        run: |
+          floated=$(node -p "require('@earendil-works/pi-coding-agent/package.json').version")
+          echo "auditing against pi ${floated}"
+          PI_AUDIT_EXPECT_PI="${floated}" \
+          PI_AUDIT_PI_BIN="node ${GITHUB_WORKSPACE}/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js" \
+          npm run audit
+      - run: npm run provenance
+      - name: file an issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pi_version=$(node -p "require('@earendil-works/pi-coding-agent/package.json').version")
+          gh issue create \
+            --title "compat canary failed against pi ${pi_version}" \
+            --label "compatibility" \
+            --body "The 3-day canary run failed against pi ${pi_version} (see run ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}). The pin is unchanged; triage whether this is Pi drift or a real break."

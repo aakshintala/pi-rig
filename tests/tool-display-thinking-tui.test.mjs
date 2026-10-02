@@ -11,8 +11,12 @@ const EXTENSION = fileURLToPath(new URL("../extensions/tool-display/index.ts", i
 const WORKSPACE = fileURLToPath(new URL("./fixtures/tool-display/workspace", import.meta.url));
 const RULE = "─".repeat(80);
 const FOOTER = ["", RULE, "", RULE, "~/cwd", "↑22 ↓14 R2 W23 CH4.7% 0.0%/128k (auto)                                 harness-1"];
-// A full 24-row screen: `top` rows, then blank rows.
-const rows = (...top) => "\n" + [...top, ...Array(24 - top.length).fill("")].join("\n");
+// Fullscreen mode on the 24-row pane: the chat on top, blank rows in the middle and
+// the dock pinned to the bottom (the last 6 rows).
+const rows = (...top) => {
+  const chat = top.slice(0, -6);
+  return "\n" + [...chat, ...Array(24 - top.length).fill(""), ...top.slice(-6)].join("\n");
+};
 
 test("hidden thinking renders nothing, with a call and with text; shown, it is labelled", async (t) => {
   const tui = await startTui(t, {

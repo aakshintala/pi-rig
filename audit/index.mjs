@@ -11,7 +11,9 @@
 //   add --json                     Print the raw report (diff before/after).
 //
 // Pi resolution (CI): $PI_AUDIT_PI_BIN, else `pi` on PATH when its version
-// matches the pin, else `npx -y <pinned pi>`. Live mode uses `pi` on PATH.
+// matches the expectation, else `npx -y <expected pi>`. Live mode uses `pi`
+// on PATH. The expectation is budgets.piVersion, or $PI_AUDIT_EXPECT_PI for
+// the compat canary, which floats Pi to latest and audits against that.
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
@@ -28,11 +30,12 @@ const versionOf = (bin) => {
   const r = spawnSync(bin[0], [...bin.slice(1), "--version"], { encoding: "utf8" });
   return r.status === 0 ? r.stdout.trim().split("\n").pop().trim() : null;
 };
+const expectedPiVersion = () => process.env.PI_AUDIT_EXPECT_PI ?? budgets.piVersion;
 function resolvePiBin() {
   if (live) return ["pi"];
   if (process.env.PI_AUDIT_PI_BIN) return process.env.PI_AUDIT_PI_BIN.split(" ");
-  if (versionOf(["pi"]) === budgets.piVersion) return ["pi"];
-  return ["npx", "-y", `@earendil-works/pi-coding-agent@${budgets.piVersion}`];
+  if (versionOf(["pi"]) === expectedPiVersion()) return ["pi"];
+  return ["npx", "-y", `@earendil-works/pi-coding-agent@${expectedPiVersion()}`];
 }
 
 function runPi(bin, args, env, cwd) {
@@ -55,8 +58,8 @@ function runPi(bin, args, env, cwd) {
 
 const bin = resolvePiBin();
 const version = versionOf(bin);
-if (!live && version !== budgets.piVersion) {
-  console.error(`audit FAILED: pi ${version} != pinned ${budgets.piVersion}`);
+if (!live && version !== expectedPiVersion()) {
+  console.error(`audit FAILED: pi ${version} != expected ${expectedPiVersion()}`);
   process.exit(1);
 }
 

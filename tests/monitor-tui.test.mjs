@@ -26,7 +26,6 @@ const screen = (lines, fleet, usage) => {
 test("a monitor is a FleetView row; its viewer follows the log, and x in FleetView stops it", async (t) => {
   const tui = await startTui(t, {
     extensions: EXTENSIONS,
-    args: ["--tui-mode", "fullscreen"],
     replies: [[{ type: "toolCall", id: "c1", name: "monitor", arguments: { command: "sh watch.sh", description: "watch" } }], "started", "noted", "stopped"],
   });
   t.after(() => assert.deepEqual(liveGroup(tui.pid), []));
