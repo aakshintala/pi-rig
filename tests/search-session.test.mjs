@@ -1,8 +1,8 @@
 // Scripted-model sessions over the fixture repo: grep and find go through FFF (spec #35).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { fauxAssistantMessage, fauxText, fauxToolCall, scriptedSession } from "./helpers/session.mjs";
 import { makeRepo, spyFFF } from "./fixtures/search/setup.mjs";
 import "./fixtures/tool-display/pi-tui.mjs"; // before the extension, which draws with pi-tui
@@ -37,6 +37,14 @@ async function searchSession(t, { load = spyFFF().load, home = false, setup, wai
   const { SETTINGS: SEARCH_SETTINGS } = await import("../extensions/search/index.ts");
   const { getAgentDir } = await import("@earendil-works/pi-coding-agent");
   rigSettings(getAgentDir()).declare("search", SEARCH_SETTINGS).set("disabled", disabled);
+  // The singleton above is rooted at this file's first temp agent dir: a set()
+  // can recreate that removed dir's agent/rig.json. Drop such a zombie (a live
+  // box always has its cwd); the session's own cleanup owns this test's box.
+  t.after(() => {
+    const box = dirname(dirname(rigSettings(getAgentDir()).path));
+    if (box !== dirname(cwd) && basename(box).startsWith("pi-rig-session-") && !existsSync(join(box, "cwd")))
+      rmSync(box, { recursive: true, force: true });
+  });
   await session.bindExtensions({}); // emits session_start, as Pi's modes do
   const run = async (calls) => {
     faux.setResponses([

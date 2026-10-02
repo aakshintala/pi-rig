@@ -84,11 +84,6 @@ export function direct(t, load, opts = {}) {
   const tools = {};
   const on = {};
   const notices = [];
-  const agentDir = realpathSync(mkdtempSync(join(tmpdir(), "pi-rig-search-direct-")));
-  process.env.PI_CODING_AGENT_DIR = agentDir;
-  t.after(() => {
-    rmSync(agentDir, { recursive: true, force: true });
-  });
   searchExtension(load, rest)({ on: (e, h) => (on[e] = h), registerTool: (d) => (tools[d.name] = d) });
   const ctx = { cwd: "", ui: { notify: (m) => notices.push(m) } };
   t.after(() => on.session_shutdown());
