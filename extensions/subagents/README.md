@@ -76,7 +76,9 @@ any agent.
   - the parent's `enabledModels`, so its own `subagent_spawn` offers the same
     models
   - the parent's system prompt sections as of the parent's latest run: the
-    custom prompt, appended prompt, context files (AGENTS.md) and skills
+    custom prompt, appended prompt, context files (AGENTS.md), skills, and
+    named sections (such as ponytail), so parent and child build the identical
+    section set and the provider prefix cache survives the round-trip
   - the extensions Pi discovers for that cwd and agent dir
 - Before the parent's first run, there are no sections to copy, so a child
   discovers its own. This happens only with a resume after a restart.

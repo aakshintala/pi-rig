@@ -183,3 +183,13 @@ test("after a reopen or /tree, every leading block's skills count as loaded", as
   await session.prompt("after tree /tdd /grilling");
   assert.deepEqual(skillMessages(requests[3]), [], "both blocks' skills count as loaded after /tree");
 });
+
+test("a custom run, as a fleet notice starts while idle, loads no skills and reports no error", async (t) => {
+  const { session, requests } = await start(t, 2);
+  const errors = [];
+  session.extensionRunner.onError((e) => errors.push(e));
+  await session.prompt("plain");
+  await session.sendCustomMessage({ customType: "rig.notice", content: "notice with /tdd", display: true }, { triggerTurn: true });
+  assert.deepEqual(errors, [], "before_agent_start must skip runs without a prompt");
+  assert.deepEqual(skillMessages(requests[1]), []);
+});

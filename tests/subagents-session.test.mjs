@@ -596,6 +596,7 @@ test("a child inherits the parent's active tools and prompt sections", { timeout
     customPrompt: "PARENT CUSTOM PROMPT",
     appendSystemPrompt: "PARENT APPENDED",
     contextFiles: [{ path: "/parent/AGENTS.md", content: "PARENT RULES" }],
+    sections: { rigtest: "PARENT SECTION" },
   };
   t.after(() => delete globalThis[PROMPT]);
   let child;
@@ -611,7 +612,7 @@ test("a child inherits the parent's active tools and prompt sections", { timeout
   await session.prompt("go");
   assert.deepEqual(child.tools, ["ls", "read", "subagent_message", "subagent_spawn", "subagent_stop"]);
   assert.match(child.prompt, /^PARENT CUSTOM PROMPT/);
-  for (const text of ["PARENT APPENDED", "PARENT RULES"]) assert.ok(child.prompt.includes(text), text);
+  for (const text of ["PARENT APPENDED", "PARENT RULES", "PARENT SECTION"]) assert.ok(child.prompt.includes(text), text);
 });
 
 test("a child ending with a grandchild running is woken once, and its notice, counting the grandchild's tokens, comes after", { timeout: 20_000 }, async (t) => {

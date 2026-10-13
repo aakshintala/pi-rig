@@ -239,13 +239,15 @@ async function savedRun(t, file, extensions) {
 }
 
 // Only what must differ between two runs: entry and session ids, timestamps, the cwd,
-// and the id each faux provider gets when it is created.
+// the id each faux provider gets when it is created, and each tool result's recorded
+// execution time (Pi 1.1.0 measures it; two runs never agree to the millisecond).
 function normalise(text) {
   const ids = new Map();
   return text
     .replace(/"cwd":"[^"]*"/g, '"cwd":"<cwd>"')
     .replace(/"(id|parentId)":"([^"]+)"/g, (_, k, v) => `"${k}":"<${ids.get(v) ?? ids.set(v, ids.size).get(v)}>"`)
     .replace(/"timestamp":("[^"]*"|\d+)/g, '"timestamp":"<time>"')
+    .replace(/"durationMs":\d+/g, '"durationMs":"<ms>"')
     .replace(/"api":"faux:[^"]*"/g, '"api":"faux:<id>"');
 }
 

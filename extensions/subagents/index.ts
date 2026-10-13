@@ -326,6 +326,10 @@ export default function (pi: ExtensionAPI) {
 
   async function open(a: Agent, inherit: Inherit) {
     const p = inherit.prompt;
+    // The parent's named sections, seeded into every child run: without them the child
+    // builds a different section set, and each add/remove section patch rewrites the
+    // early system block, busting the provider prefix cache on every round-trip.
+    const sections = { ...(p?.sections ?? {}) };
     // The parent's prompt sections replace what the child would discover; without them (no run yet) it discovers its own.
     const resourceLoader = new DefaultResourceLoader({
       cwd: a.cwd,
@@ -335,6 +339,21 @@ export default function (pi: ExtensionAPI) {
         appendSystemPromptOverride: () => (p.appendSystemPrompt ? [p.appendSystemPrompt] : []),
         agentsFilesOverride: () => ({ agentsFiles: p.contextFiles ?? [] }),
         skillsOverride: () => ({ skills: p.skills ?? [], diagnostics: [] }),
+      }),
+      // Inline factories load after file extensions, so the child's own sections land
+      // first and the parent's fill the gaps; both sides keep the identical set.
+      ...(Object.keys(sections).length && {
+        extensionFactories: [
+          {
+            name: "subagents-sections",
+            hidden: true,
+            factory: (child: ExtensionAPI) => {
+              child.on("before_agent_start", (event) => {
+                Object.assign((event.systemPromptOptions.sections ??= {}), sections);
+              });
+            },
+          },
+        ],
       }),
     });
     await resourceLoader.reload();

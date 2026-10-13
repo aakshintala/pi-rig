@@ -135,7 +135,7 @@ test("main-session output while a viewer is open lands in the main chat", async 
   await tui.waitForScreen(screen(["", " ● monitor build · 0s · build 42 passed", "", " noted"], rows("main"), { footer }));
 });
 
-test("a log viewer follows new output, pauses when scrolled up, and End jumps back", async (t) => {
+test("a log viewer follows new output, pauses when scrolled up, and Ctrl+End jumps back", async (t) => {
   const lines = Array.from({ length: 20 }, (_, i) => `line ${i + 1}`);
   const tui = await start(t, { lines });
   // Finished items: no running-time timer redraws the screen, so only the log watcher does.
@@ -157,15 +157,15 @@ test("a log viewer follows new output, pauses when scrolled up, and End jumps ba
   // Pi's transcript scroll view: scrolled up, the view stays put while output arrives.
   tui.keys("PageUp");
   const top = [" monitor build · done 0s · esc back", ...lines.slice(0, 12).map((l) => ` ${l}`)];
-  const paused = screen([...top.slice(0, -1), " line 12                 ↓ Jump to latest message · End", ""], focused);
+  const paused = screen([...top.slice(0, -1), " line 12              ↓ Jump to latest message · Ctrl+End", ""], focused);
   await tui.waitForScreen(paused);
   appendFileSync(tui.log, "line 22\n");
   // A new row redraws the screen; the log watcher has read line 22 by then or soon after.
   await tui.fx({ add: "c", kind: "monitor", label: "tick", status: "queued" });
   const withC = [...fleet, "   monitor tick · queued"];
   // The resized chat may preserve the header or scroll it off by one line.
-  const shifted = [...lines.slice(0, 12).map((l) => ` ${l}`), " line 13                 ↓ Jump to latest message · End", ""];
-  const pausedWithC = screen([...top.slice(0, -1), " line 12                 ↓ Jump to latest message · End", ""], withC);
+  const shifted = [...lines.slice(0, 12).map((l) => ` ${l}`), " line 13              ↓ Jump to latest message · Ctrl+End", ""];
+  const pausedWithC = screen([...top.slice(0, -1), " line 12              ↓ Jump to latest message · Ctrl+End", ""], withC);
   const shiftedWithC = screen(shifted, withC);
   const waitPaused = async () => {
     const expected = [pausedWithC, shiftedWithC].map((s) => s.replace(/^\n/, ""));
@@ -174,7 +174,7 @@ test("a log viewer follows new output, pauses when scrolled up, and End jumps ba
   };
   await waitPaused();
 
-  tui.keys("End");
+  tui.keys("C-End");
   await tui.waitForScreen(tail([...followed, "line 22"], withC));
 
   // Reopened after leaving it scrolled up, the viewer follows the end again.
