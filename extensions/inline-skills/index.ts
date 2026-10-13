@@ -294,9 +294,11 @@ export default function (pi: ExtensionAPI) {
   });
 
   // A prompt: its skills follow it as one custom message. Runs after Pi accepted the
-  // prompt (model and auth checked); the text is already expanded.
+  // prompt (model and auth checked); the text is already expanded. Custom runs (from
+  // `pi.sendMessage`, such as fleet notices) carry no prompt, so only they skip.
   pi.on("before_agent_start", async (event, ctx) => {
     starting = new Set();
+    if (event.messageType === "custom") return;
     const named = toLoad(event.prompt);
     if (!named.length) return;
     starting = new Set(named.map((s) => s.name)); // the prompt's own text is not scanned again

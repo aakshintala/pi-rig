@@ -92,6 +92,15 @@ function viewing(content, rows, footer) {
   return "\n" + [...chat, ...Array(ROWS - dock.length - chat.length).fill(""), ...dock].join("\n");
 }
 
+// Pi 1.1.0 draws each bash result's recorded time; it is wall-clock, so screens are
+// compared with the value blanked on both sides. Expected content spells it `0.0s`.
+const took = (s) => s.replace(/ Took \d+\.\d+s/g, " Took <t>");
+async function waitForTookScreen(tui, expected) {
+  const want = took(expected.replace(/^\n/, "")).split("\n").map((l) => l.trimEnd()).join("\n");
+  for (let i = 0; i < 1000 && took(tui.screen()) !== want; i++) await new Promise((r) => setTimeout(r, 20));
+  assert.equal(took(tui.screen()), want, `timed out waiting for screen:\n${tui.screen()}`);
+}
+
 async function transcriptTui(t, replies, kid) {
   const tui = await startTui(t, { extensions: WITH_DISPLAY, replies });
   t.after(() => assert.deepEqual(liveGroup(tui.pid), []));
@@ -123,25 +132,25 @@ test("the viewer shows a running agent's transcript, follows it and its steer, a
   tui.keys("Down", "Down", "Enter");
   // Pi's own components: the task as a user message, the hidden thinking and both reads as
   // one group line, and bash drawn natively from its definition.
-  const calls = ["", "", " ⏺ thought · read 2 files", "", "", " $ echo hi", "", " hi", ""];
-  const live = ["", "", " ⏺ thought · read 2 files", "", "", " $ echo hi", "", " hi", ""]; // the child is mid-turn: its run is open, and the group line's dot is static now
+  const calls = ["", "", " ⏺ thought · read 2 files", "", "", " $ echo hi", "", " hi", "", " Took 0.0s", ""];
+  const live = ["", "", " ⏺ thought · read 2 files", "", "", " $ echo hi", "", " hi", "", " Took 0.0s", "", ""]; // the child is mid-turn: its run is open, and the group line's dot is static now
   const head = (state, keys = " · enter steers") => ` agent scout · ${state} · esc back${keys}`;
   const footer = "↑49 ↓32 R2 W49 CH2.1% 0.1%/128k (auto)                       (harness) harness-1";
-  await tui.waitForScreen(viewing(["", ...TASK, ...live], ["›● agent scout · kid-1 · low · ↑1.0k ↓0 0% · 0s", "    └─ bash echo hi"], footer));
+  await waitForTookScreen(tui, viewing(["", ...TASK, ...live], ["›● agent scout · kid-1 · low · ↑1.0k ↓0 0% · 0s", "    └─ bash echo hi"], footer));
 
   tui.type("look deeper"); // typing leaves FleetView for the editor // a steer: pending until the child's next step, then a user message
   tui.keys("Enter");
-  await tui.waitForScreen(viewing([head("0s"), "", ...TASK, ...live, "", " Steering: look deeper", ""], [" ● agent scout · kid-1 · low · ↑1.0k ↓0 0% · 0s", "    └─ bash echo hi"], footer));
+  await waitForTookScreen(tui, viewing([head("0s"), "", ...TASK, ...live, " Steering: look deeper", ""], [" ● agent scout · kid-1 · low · ↑1.0k ↓0 0% · 0s", "    └─ bash echo hi"], footer));
 
   writeFileSync(join(tui.agentDir, "go"), "");
   await tui.waitForEvent("kid_reply", 3); // its reply came, then the steer, and it waits again
   const replied = [...TASK, ...calls, "", " found 3 notes", " STATUS: DONE", "", "", " look deeper"];
-  await tui.waitForScreen(viewing([head("0s"), "", ...replied, "", ""], [" ● agent scout · kid-1 · low · ↑2.0k ↓0 0% · 0s", "    └─ STATUS: DONE"], footer));
+  await waitForTookScreen(tui, viewing([head("0s"), "", ...replied, "", ""], [" ● agent scout · kid-1 · low · ↑2.0k ↓0 0% · 0s", "    └─ STATUS: DONE"], footer));
 
   writeFileSync(join(tui.agentDir, "go2"), "");
   await tui.waitForEvent("agent_end", 2); // the parent's turn on the child's notice
   const done = [head("done 0s"), "", ...replied, "", "", " none deeper", " STATUS: DONE", ""];
-  await tui.waitForScreen(viewing(done, [" ● agent scout · kid-1 · low · ↑3.0k ↓0 0% · 3 turns · 3 tools · done 0s", "    └─ STATUS: DONE"], "↑86 ↓34 R51 W87 CH39.5% 0.1%/128k (auto)                     (harness) harness-1"));
+  await waitForTookScreen(tui, viewing(done, [" ● agent scout · kid-1 · low · ↑3.0k ↓0 0% · 3 turns · 3 tools · done 0s", "    └─ STATUS: DONE"], "↑86 ↓34 R51 W87 CH39.5% 0.1%/128k (auto)                     (harness) harness-1"));
 });
 
 test("a finished agent's transcript opens from its saved session, ctrl+o expands its groups, and each open reads thinking visibility", async (t) => {
@@ -158,18 +167,18 @@ test("a finished agent's transcript opens from its saved session, ctrl+o expands
   ]);
   await tui.waitForEvent("agent_end", 2); // the parent's turn on the child's notice
   tui.keys("Down", "Down", "Enter");
-  const content = [" agent scout · done 0s · esc back · enter steers", "", ...TASK, "", "", " ⏺ thought · read 2 files", "", "", " $ echo hi", "", " hi", "", "", " found 3 notes", " STATUS: DONE", ""];
-  await tui.waitForScreen(viewing(content, ["›● agent scout · kid-1 · low · ↑2.0k ↓0 0% · 2 turns · 3 tools · done 0s", "    └─ STATUS: DONE"], "↑87 ↓34 R51 W88 CH38.9% 0.1%/128k (auto)                     (harness) harness-1"));
+  const content = [" agent scout · done 0s · esc back · enter steers", "", ...TASK, "", "", " ⏺ thought · read 2 files", "", "", " $ echo hi", "", " hi", "", " Took 0.0s", "", "", " found 3 notes", " STATUS: DONE", ""];
+  await waitForTookScreen(tui, viewing(content, ["›● agent scout · kid-1 · low · ↑2.0k ↓0 0% · 2 turns · 3 tools · done 0s", "    └─ STATUS: DONE"], "↑87 ↓34 R51 W88 CH38.9% 0.1%/128k (auto)                     (harness) harness-1"));
   tui.keys("C-o"); // Pi's expand key opens the group, as in the main chat; it leaves FleetView
   const reads = [" ⏺ Read(notes.md)", "   ⎿  Read 2 lines", "      one", "      two", "", " ⏺ Read(todo.md)", "   ⎿  Read 1 line", "      three"];
-  const expanded = [...reads, "", "", " $ echo hi", "", " hi", "", "", " found 3 notes", " STATUS: DONE", ""];
-  await tui.waitForScreen(viewing(expanded, [" ● agent scout · kid-1 · low · ↑2.0k ↓0 0% · 2 turns · 3 tools · done 0s", "    └─ STATUS: DONE"], "↑87 ↓34 R51 W88 CH38.9% 0.1%/128k (auto)                     (harness) harness-1"));
+  const expanded = [...reads, "", "", " $ echo hi", "", " hi", "", " Took 0.0s", "", "", " found 3 notes", " STATUS: DONE", ""];
+  await waitForTookScreen(tui, viewing(expanded, [" ● agent scout · kid-1 · low · ↑2.0k ↓0 0% · 2 turns · 3 tools · done 0s", "    └─ STATUS: DONE"], "↑87 ↓34 R51 W88 CH38.9% 0.1%/128k (auto)                     (harness) harness-1"));
   // Thinking visibility is read on each open.
   tui.keys("C-o", "Escape");
   writeFileSync(join(tui.agentDir, "settings.json"), JSON.stringify({ quietStartup: true, hideThinkingBlock: false, extensions: WITH_DISPLAY }));
   tui.keys("Down", "Down", "Enter");
-  const shown = [...TASK, "", "", " ✻ Thinking", " Where are they?", "", " ⏺ thought · read 2 files", "", "", " $ echo hi", "", " hi", "", "", " found 3 notes", " STATUS: DONE", ""];
-  await tui.waitForScreen(viewing(shown, ["›● agent scout · kid-1 · low · ↑2.0k ↓0 0% · 2 turns · 3 tools · done 0s", "    └─ STATUS: DONE"], "↑87 ↓34 R51 W88 CH38.9% 0.1%/128k (auto)                     (harness) harness-1"));
+  const shown = [...TASK, "", "", " ✻ Thinking", " Where are they?", "", " ⏺ thought · read 2 files", "", "", " $ echo hi", "", " hi", "", " Took 0.0s", "", "", " found 3 notes", " STATUS: DONE", ""];
+  await waitForTookScreen(tui, viewing(shown, ["›● agent scout · kid-1 · low · ↑2.0k ↓0 0% · 2 turns · 3 tools · done 0s", "    └─ STATUS: DONE"], "↑87 ↓34 R51 W88 CH38.9% 0.1%/128k (auto)                     (harness) harness-1"));
 });
 
 test("a running call's output shows as it comes, and x in FleetView stops the agent", async (t) => {
@@ -184,9 +193,9 @@ test("a running call's output shows as it comes, and x in FleetView stops the ag
   const running = ["", ...TASK, "", "", "", ` $ ${command}`, "", " started"];
   const row = ["›● agent scout · kid-1 · low · ↑1.0k ↓0 0% · 0s", "    └─ bash echo started; while :; do sleep 0.05; done"];
   const footer = "↑49 ↓32 R2 W49 CH2.1% 0.1%/128k (auto)                       (harness) harness-1";
-  await tui.waitForScreen(viewing([head("0s"), ...running, ""], row, footer));
+  await waitForTookScreen(tui, viewing([head("0s"), ...running, ""], row, footer));
   tui.type("x");
   await tui.waitForEvent("agent_end", 2); // the parent's turn on the child's notice
-  const stopped = [head("stopped 0s"), ...running, "", "", " Command aborted", "", "", " Error: This operation was aborted", ""];
-  await tui.waitForScreen(viewing(stopped, ["›● agent scout · kid-1 · low · ↑1.0k ↓0 0% · 2 turns · 1 tool · stopped 0s", "    └─ partial output kept"], "↑83 ↓34 R51 W84 CH41.5% 0.1%/128k (auto)                     (harness) harness-1"));
+  const stopped = [head("stopped 0s"), ...running, "", "", " Command aborted", "", " Took 0.0s", "", "", " Error: This operation was aborted", ""];
+  await waitForTookScreen(tui, viewing(stopped, ["›● agent scout · kid-1 · low · ↑1.0k ↓0 0% · 2 turns · 1 tool · stopped 0s", "    └─ partial output kept"], "↑83 ↓34 R51 W84 CH41.5% 0.1%/128k (auto)                     (harness) harness-1"));
 });
