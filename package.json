@@ -21,8 +21,8 @@
     ]
   },
   "devDependencies": {
-    "@earendil-works/pi-ai": "1.2.0",
-    "@earendil-works/pi-coding-agent": "1.2.0"
+    "@earendil-works/pi-ai": "1.4.0",
+    "@earendil-works/pi-coding-agent": "1.4.0"
   },
   "dependencies": {
     "@ff-labs/fff-node": "0.11.0"
