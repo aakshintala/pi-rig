@@ -1,64 +1,46 @@
 # status
 
-A two-line footer, and quota headroom from QuotaBar.app's loopback feed
-(`http://127.0.0.1:<quotaPort>/quotas`). One client with a cache serves the
-footer, the tool and the command; concurrent requests share one fetch. If
-QuotaBar.app is not running, all three say so plainly. No quota text is added
-to agent runs.
+The status extension provides a two-line footer and quota information from the local QuotaBar feed. The staged consumer supports feed v1 through the existing `GET /quotas` route. The installed extension has not been switched to the daemon feed.
+
+One client shares the footer, `get_quotas` and `/quota`. Concurrent requests join one fetch. The client keeps the existing 8-second tool timeout, 5-second footer timeout and TUI refresh schedule. It does not add a polling loop.
 
 ## Footer
 
-TUI sessions only; it replaces Pi's footer.
+The footer replaces Pi's footer in TUI sessions.
 
-```
+```text
 model thinking  │  in 12k out 3.4k cache 81% $0.412  │  ctx [███░░░░░░░] 31%
-~/repo main*  │  Q claude 78%/41% · codex 12%  │  TTFT 820ms · TPS 64.2
+~/repo main*  │  Q claude 78%/41% · codex 12% · muse unknown busy  │  TTFT 820ms · TPS 64.2
 ```
 
-- Usage totals cover the current branch (replies, tool results, compactions)
-  and update per message, not per draw. Tokens and cost also count every
-  subagent once it finishes, its own children included.
-- Context turns amber at 70% and red at 90%; a provider's quota turns amber
-  below 50% left and red below 20% in its lowest bucket.
-- `*` marks uncommitted changes. `git status` runs in the background at
-  session start and 300 ms after the last tool call, one git at a time per
-  process, only in trusted projects, and is stopped on shutdown. A git still
-  running after 5 s gets SIGTERM, then SIGKILL 2 s later; a timed-out
-  config read ends the check before `git status` starts. It never runs
-  the repo's own code: fsmonitor, hooks and repo-configured clean filters are
-  disabled, and submodules are compared by commit only.
-- Quotas show what the shared client holds: after a failed refresh the last
-  feed stays until it is older than `quotaRefreshSeconds`, then the footer
-  shows `Q unavailable`. A fetch that times out counts as failed. A new
-  `quotaPort` hides quotas until the next fetch.
-- TTFT and TPS are for the last reply.
+The footer uses provider severity from the feed. It does not infer quota health from percentage thresholds. It shows percentage, balance and count meters, including providers with no current reading. It marks stale readings with their age and shows safe recovery guidance for feed error codes.
 
-## Tool
+Context turns amber at 70% and red at 90%. Usage totals cover the current branch and update per message, not per draw. Tokens and cost count each finished subagent once. `*` marks uncommitted changes.
 
-- `get_quotas({ provider? })`: one compact line per provider with percent
-  left per bucket (the balance for a balance-only bucket, such as Codex
-  credits, and used/limit counts where QuotaBar sends them); reset times only
-  for buckets that are not healthy.
+Git status runs in the background at session start and 300 ms after the last tool call. It runs one process at a time, only in trusted projects, and stops on shutdown. It does not run repository code: fsmonitor, hooks and repo-configured clean filters are disabled, and submodules are compared by commit only.
 
-## Command
+## Quota tool
 
-- `/quota`: the full feed (every bucket, reset time and status) as a
-  notification.
+`get_quotas({ provider? })` shows one compact line per provider. It includes remaining percentage, balance or used/limit count, server status, capture age and safe recovery guidance. It includes reset times for buckets that are not healthy. Output stays within 400 characters.
 
-## Polling
+## Quota command
 
-In TUI sessions the client refreshes the feed on `session_start` and every
-`quotaRefreshSeconds`, and stops on shutdown, `/reload` and session switch.
-Tool and command calls use a cached feed younger than the interval, else
-fetch (8 s timeout; polling uses 5 s).
+`/quota` shows every provider and bucket, including reset times, status, capture age and safe error guidance. Invalid or unsupported feed v1 data is reported separately from an unavailable daemon. The client does not print raw response bodies or parser errors.
 
-## `rig.json` settings (`status` section)
+## Refresh behavior
+
+In TUI sessions, the client fetches when the session starts and every `quotaRefreshSeconds`. It stops on shutdown, reload and session switch. Tool and command calls reuse a cached feed younger than the interval; otherwise they join a fetch. A failed refresh keeps a cached feed only until its local cache interval expires. The footer recomputes capture age when Pi renders it, so an unchanged feed can become visibly stale without another request.
+
+## Settings
+
+Settings live in the `status` section of `rig.json`.
 
 | Key | Default | Meaning |
-|---|---|---|
-| `quota` | `true` | QuotaBar integration; `false` drops `get_quotas`, `/quota`, polling and the footer's `Q` segment (applies on `/reload`) |
-| `quotaPort` | `8787` | QuotaBar.app feed port (1 to 65535) |
-| `quotaRefreshSeconds` | `60` | Polling interval (5 to 3600) |
+|---|---:|---|
+| `quota` | `true` | Disable quota tool, command, refreshes and footer segment. Apply the change on reload. |
+| `quotaPort` | `8787` | Loopback feed port, from 1 to 65535. |
+| `quotaRefreshSeconds` | `60` | Refresh interval, from 5 to 3600 seconds. |
 
-Other changes made with `/rig` apply immediately: a new port drops the cached feed,
-and a new interval restarts polling.
+A port change clears the cached feed. An interval change retimes the existing TUI refresh schedule.
+
+This documentation describes staged feed v1 support. It does not install or activate the daemon consumer. The current installed client remains unchanged until a separately approved cutover.

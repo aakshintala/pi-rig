@@ -6,10 +6,18 @@ import { existsSync, writeFileSync } from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import status from "../../../extensions/status/index.ts";
 
+const capturedAt = new Date().toISOString();
+const bucket = (key: string, label: string, percentRemaining: number, status: "healthy" | "warning" | "critical") => ({
+  key, label, percentRemaining, balanceRemaining: null, balanceUsed: null, balanceCap: null, balanceUnit: null,
+  unitsUsed: null, unitsLimit: null, resetsAt: null, resetText: null, status,
+});
 const FEED = {
+  schemaVersion: 1,
+  generatedAt: capturedAt,
+  disabledProviderIds: [],
   providers: [
-    { id: "claude", status: "healthy", quotas: [{ label: "Session", percentRemaining: 78, status: "healthy" }, { label: "Weekly", percentRemaining: 41, status: "healthy" }] },
-    { id: "codex", status: "healthy", quotas: [{ label: "Weekly", percentRemaining: 12, status: "low" }] },
+    { id: "claude", name: "Claude", tier: null, capturedAt, ageSeconds: 0, freshness: "fresh", errorCode: null, status: "warning", quotas: [bucket("session", "Session", 78, "healthy"), bucket("weekly", "Weekly", 41, "warning")] },
+    { id: "codex", name: "Codex", tier: null, capturedAt, ageSeconds: 0, freshness: "fresh", errorCode: null, status: "critical", quotas: [bucket("weekly", "Weekly", 12, "critical")] },
   ],
 };
 
