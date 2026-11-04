@@ -27,12 +27,16 @@ async function settle(ok, what) {
 }
 const usage = (input, output, cacheRead = 0, cost = 0) => ({ input, output, cacheRead, cacheWrite: 0, cost: { total: cost } });
 const ZERO = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 };
+const capturedAt = new Date().toISOString();
+const bucket = (key, label, percentRemaining, status = "healthy", extra = {}) => ({ key, label, percentRemaining, balanceRemaining: null, balanceUsed: null, balanceCap: null, balanceUnit: null, unitsUsed: null, unitsLimit: null, resetsAt: null, resetText: null, status, ...extra });
+const provider = (id, name, quotas, status = "healthy", extra = {}) => ({ id, name, tier: null, capturedAt, ageSeconds: 0, freshness: "fresh", errorCode: null, status, quotas, ...extra });
 const FEED = {
+  schemaVersion: 1, generatedAt: capturedAt, disabledProviderIds: [],
   providers: [
-    { id: "claude", quotas: [{ label: "Session", percentRemaining: 78, status: "healthy" }] },
-    { id: "codex", quotas: [{ label: "Weekly", percentRemaining: 30, status: "healthy" }, { label: "Credits", percentRemaining: null, balanceRemaining: 0, balanceUnit: "credits", status: "healthy" }] },
-    { id: "cursor", quotas: [{ label: "Month", percentRemaining: 10, status: "low" }] },
-    { id: "gone", unavailable: "logged out", quotas: [] },
+    provider("claude", "Claude", [bucket("session", "Session", 78)]),
+    provider("codex", "Codex", [bucket("weekly", "Weekly", 30), bucket("credits", "Credits", null, "healthy", { balanceRemaining: 0, balanceUnit: "credits" })]),
+    provider("cursor", "Cursor", [bucket("month", "Month", 10, "warning")], "warning"),
+    provider("gone", "Gone", [], "unknown", { capturedAt: null, ageSeconds: null, freshness: "unknown" }),
   ],
 };
 
@@ -107,7 +111,7 @@ function session(pi, { trusted = true, mode = "tui", branch = [], gitBranch = "m
   s.emit = async (type, event = {}) => {
     for (const fn of pi.handlers[type] ?? []) await fn({ type, ...event }, ctx);
   };
-  s.lines = () => s.component.render(500);
+  s.lines = (width = 500) => s.component.render(width);
   return s;
 }
 
@@ -119,11 +123,11 @@ function gitHarness(options) {
   return { pi, timers, gits, s: session(pi, options) };
 }
 
-test("colours: quota headroom, context fill, thinking level and the dirty mark", () => {
+test("footer uses server quota severity, context thresholds, thinking level and the dirty mark", () => {
   const snap = (over) => ({ model: "m1", thinking: "xhigh", totals: ZERO, contextPercent: 5, cwd: "~/r", branch: "main", dirty: true, feed: FEED, ...over });
   const [top, bottom] = footerLines(snap({}), THEME);
   assert.equal(top, "<accent>m1</accent> <thinkingXhigh>xhigh</thinkingXhigh>  │  in 0 out 0 cache -- $0.000  │  <accent>ctx [█░░░░░░░░░] 5%</accent>");
-  assert.equal(bottom, "~/r <accent>main</accent><warning>*</warning>  │  Q <text>claude 78%</text> · <warning>codex 30%</warning> · <error>cursor 10%</error>  │  TTFT -- · TPS --");
+  assert.equal(bottom, "~/r <accent>main</accent><warning>*</warning>  │  Q <text>claude 78%</text> · <text>codex 30%/0 credits</text> · <warning>cursor 10%</warning> · <warning>gone unknown</warning>  │  TTFT -- · TPS --");
   assert.match(footerLines(snap({ contextPercent: 70 }), THEME)[0], /<warning>ctx \[███████░░░\] 70%<\/warning>$/);
   assert.match(footerLines(snap({ contextPercent: 90 }), THEME)[0], /<error>ctx \[█████████░\] 90%<\/error>$/);
   assert.match(footerLines(snap({ contextPercent: null }), THEME)[0], /│  ctx --$/);
@@ -131,10 +135,53 @@ test("colours: quota headroom, context fill, thinking level and the dirty mark",
   assert.equal(footerLines(snap({ feed: undefined, branch: null }), THEME)[1], "~/r  │  TTFT -- · TPS --");
 });
 
-test("a quota just under a threshold takes the colour of its exact value, not of its rounded text", () => {
-  const feed = { providers: [{ id: "a", quotas: [{ label: "x", percentRemaining: 19.6, status: "low" }] }, { id: "b", quotas: [{ label: "x", percentRemaining: 49.7, status: "healthy" }] }] };
+test("footer uses provider severity when percentages disagree", () => {
+  const feed = { ...FEED, providers: [
+    provider("healthy-low", "Healthy low", [bucket("x", "x", 30, "healthy")], "healthy"),
+    provider("warning-high", "Warning high", [bucket("x", "x", 80, "warning")], "warning"),
+    provider("depleted", "Depleted", [bucket("x", "x", 90, "depleted")], "depleted"),
+  ] };
   const bottom = footerLines({ totals: ZERO, contextPercent: 0, cwd: "~", branch: null, dirty: null, feed }, THEME)[1];
-  assert.match(bottom, /Q <error>a 20%<\/error> · <warning>b 50%<\/warning>/);
+  assert.match(bottom, /<text>healthy-low 30%<\/text>/);
+  assert.match(bottom, /<warning>warning-high 80%<\/warning>/);
+  assert.match(bottom, /<error>depleted 90%<\/error>/);
+});
+
+test("footer retains unknown, recovery, balance and count-only provider states", () => {
+  const feed = { ...FEED, providers: [
+    provider("muse", "Muse", [], "unknown", { capturedAt: null, ageSeconds: null, freshness: "unknown", errorCode: "busy" }),
+    provider("claude", "Claude", [bucket("session", "Session", 40, "warning")], "warning", { errorCode: "rate_limited" }),
+    provider("cursor", "Cursor", [], "unknown", { capturedAt: null, ageSeconds: null, freshness: "unknown", errorCode: "keychain_blocked" }),
+    provider("codex", "Codex", [bucket("credits", "Credits", null, "healthy", { balanceRemaining: 12.5, balanceUnit: "usd" })]),
+    provider("muse", "Muse Go", [bucket("calls", "Calls", null, "healthy", { unitsUsed: 12, unitsLimit: 100 })]),
+  ] };
+  const bottom = footerLines({ totals: ZERO, contextPercent: 0, cwd: "~", branch: null, dirty: null, feed }, THEME)[1];
+  assert.match(bottom, /muse unknown.*busy/);
+  assert.match(bottom, /claude rate limited/);
+  assert.match(bottom, /cursor unknown keychain blocked/);
+  assert.match(bottom, /codex \$12\.50/);
+  assert.match(bottom, /muse 12\/100/);
+});
+
+test("footer age cache updates at the five-minute boundary without a new feed or width", async () => {
+  const captured = Date.parse("2026-11-04T12:00:00Z");
+  let now = captured + 299_000;
+  const pi = fakePi();
+  const footer = registerFooter(pi, { now: () => now, gitDirty: async () => null });
+  const s = session(pi, { trusted: false });
+  await s.emit("session_start");
+  const feed = { ...FEED, providers: [provider("claude", "Claude", [bucket("session", "Session", 78)], "healthy", { capturedAt: new Date(captured).toISOString(), freshness: "fresh" })] };
+  footer.quotas(feed);
+  const fresh = s.lines(500)[1];
+  assert.match(fresh, /Q <text>claude 78%<\/text>/);
+  now = captured + 300_000;
+  const stale = s.lines(500)[1];
+  assert.match(stale, /claude stale 5m 78%/);
+  assert.notEqual(stale, fresh);
+  assert.match(stale, /stale 5m/);
+  const narrow = s.lines(72)[1];
+  assert.match(narrow, /stale/);
+  assert.doesNotMatch(narrow, /claude 78%/);
 });
 
 test("an unknown thinking level draws in the off colour instead of throwing", () => {
@@ -146,7 +193,7 @@ test("an unknown thinking level draws in the off colour instead of throwing", ()
 
 test("cwd, branch, model and provider ids are drawn as plain text", () => {
   const evil = "\x1b[31mred\x1b]0;title\x07\nx";
-  const feed = { providers: [{ id: evil, quotas: [{ label: "x", percentRemaining: 90, status: "healthy" }] }] };
+  const feed = { schemaVersion: 1, generatedAt: capturedAt, disabledProviderIds: [], providers: [provider(evil, "Evil", [bucket("x", "x", 90)], "healthy")] };
   const [top, bottom] = footerLines({ model: evil, totals: ZERO, contextPercent: 0, cwd: `~/${evil}`, branch: evil, dirty: null, feed }, THEME);
   assert.equal(top.split("  │  ")[0], "<accent>red x</accent>");
   assert.equal(bottom.split("  │  ").slice(0, 2).join("  │  "), "~/red x <accent>red x</accent>  │  Q <text>red x 90%</text>");
@@ -231,7 +278,7 @@ test("the per-width render cache never serves a stale line: model, thinking, bra
   assert.notEqual(s.lines()[1], before, "branch");
 
   before = s.lines()[1];
-  footer.quotas({ providers: [{ id: "solo", quotas: [{ label: "x", percentRemaining: 5, status: "low" }] }] });
+  footer.quotas({ ...FEED, providers: [provider("solo", "Solo", [bucket("x", "x", 5, "depleted")], "depleted")] });
   assert.notEqual(s.lines()[1], before, "quota");
 
   before = s.lines()[0];
@@ -398,7 +445,7 @@ test("two sessions in one process keep their own timing and usage", async () => 
 
 test("the footer mirrors the quota client: new feeds, failures, stale drops and port changes, and ignores a fetch the port change aborted", async () => {
   let clock = 0;
-  let reply = () => Response.json(FEED);
+  let reply = () => Response.json(feedAtClock());
   let fetches = 0;
   let tick;
   const quotaTimers = { ...fakeTimers(), setInterval: (fn) => ((tick = fn), 1), clearInterval() {} };
@@ -407,6 +454,7 @@ test("the footer mirrors the quota client: new feeds, failures, stale drops and 
   const section = rigSettings(agentDir).sections().find((x) => x.name === "status");
   const s = session(pi, { trusted: false });
   const quotas = () => s.lines()[1].split("  │  ").find((p) => p.startsWith("Q"));
+  const feedAtClock = () => ({ ...FEED, generatedAt: new Date(clock).toISOString(), providers: FEED.providers.map((p) => ({ ...p, capturedAt: p.capturedAt ? new Date(clock).toISOString() : null, ageSeconds: p.capturedAt ? 0 : null })) });
   const poll = async () => {
     const n = fetches;
     tick ? tick() : await s.emit("session_start"); // a TUI session start polls, then every tick
@@ -420,7 +468,7 @@ test("the footer mirrors the quota client: new feeds, failures, stale drops and 
   };
   try {
     await poll();
-    const shown = "Q <text>claude 78%</text> · <warning>codex 30%</warning> · <error>cursor 10%</error>";
+    const shown = "Q <text>claude 78%</text> · <text>codex 30%/0 credits</text> · <warning>cursor 10%</warning> · <warning>gone unknown</warning>";
     assert.equal(quotas(), shown);
 
     reply = () => {
@@ -429,14 +477,14 @@ test("the footer mirrors the quota client: new feeds, failures, stale drops and 
     clock = 30_000;
     await poll();
     assert.equal(quotas(), shown, "a failure inside the refresh interval keeps the feed, as the client does");
-    assert.match(await quota(), /^claude/, "/quota agrees");
+    assert.match(await quota(), /^Claude: healthy/, "/quota agrees");
 
     clock = 61_000;
     await poll();
     assert.equal(quotas(), "Q unavailable");
     assert.match(await quota(), /unavailable/, "/quota agrees");
 
-    reply = () => Response.json(FEED);
+    reply = () => Response.json(feedAtClock());
     await poll();
     assert.equal(quotas(), shown);
     let aborted = false;
@@ -459,7 +507,7 @@ test("the footer mirrors the quota client: new feeds, failures, stale drops and 
 });
 
 test("a hung quota fetch that times out drops a stale feed from the footer, as the client does", async () => {
-  let clock = 0;
+  let clock = Date.now();
   let mode = "ok";
   let fetches = 0;
   let tick;
@@ -479,7 +527,7 @@ test("a hung quota fetch that times out drops a stale feed from the footer, as t
     await settle(() => quotas()?.startsWith("Q <text>claude"), "first feed shown");
 
     mode = "hang";
-    clock = 61_000; // the feed is now stale
+    clock += 61_000; // the feed is now stale
     tick();
     await settle(() => fetches === 2);
     assert.match(quotas(), /^Q <text>claude/, "still shown while the fetch hangs");
@@ -495,7 +543,7 @@ test("a hung quota fetch that times out drops a stale feed from the footer, as t
 
 test("a shut-down footer stops mirroring the quota client", async () => {
   let reply = () => Response.json(FEED);
-  let clock = 0;
+  let clock = Date.now();
   const pi = fakePi();
   status(pi, { fetch: async () => reply(), now: () => clock, quotaTimers: { ...fakeTimers(), setInterval: () => 1, clearInterval() {} }, gitDirty: async () => null });
   const s = session(pi, { trusted: false });
@@ -506,7 +554,7 @@ test("a shut-down footer stops mirroring the quota client", async () => {
   await s.emit("session_shutdown");
   await s.emit("session_shutdown"); // idempotent
   reply = () => Promise.reject(new TypeError("fetch failed"));
-  clock = 61_000;
+  clock += 61_000;
   const renders = s.renders;
   await pi.commands.quota.handler("", s.ctx); // the client still fetches; the footer must not hear it
   assert.match(s.notes.at(-1), /unavailable/);

@@ -13,7 +13,7 @@ pi install /path/to/pi-rig
 | Extension | What it is for | Spec |
 |---|---|---|
 | [ponytail](extensions/ponytail/README.md) | Always-on guidance to build the simplest working solution, plus the `ponytail-audit` skill | [#37](https://github.com/aakshintala/pi-rig/issues/37) |
-| [status](extensions/status/README.md) | Two-line footer (model, usage, context, git, quotas, speed), plus quota headroom via `get_quotas` and `/quota` | [#38](https://github.com/aakshintala/pi-rig/issues/38) |
+| [status](extensions/status/README.md) | Two-line footer (model, usage, context, git, quotas, speed), plus staged feed v1 status, capture age and safe recovery guidance via `get_quotas` and `/quota` | [#38](https://github.com/aakshintala/pi-rig/issues/38) |
 | [rig](extensions/rig/README.md) | `/rig` settings menu over every extension's `rig.json` section | [#32](https://github.com/aakshintala/pi-rig/issues/32) |
 | [fleet](extensions/fleet/README.md) | FleetView groups running shells, shows linked agent activity, clears finished work after 10 seconds, and provides a viewer, notices and Ctrl+B | [#29](https://github.com/aakshintala/pi-rig/issues/29) |
 | [tool-display](extensions/tool-display/README.md) | Groups tool calls into static live summaries (Pi's editor owns the spinner); Ctrl+O or a click reveals errors, while built-in `read`, `edit` and `write` show call lines and edit diffs | [#40](https://github.com/aakshintala/pi-rig/issues/40) |
