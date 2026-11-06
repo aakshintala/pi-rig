@@ -15,18 +15,18 @@ const BORDER = "─".repeat(80);
 // Fullscreen: an empty chat fills the top, then the dock (border, editor, border, footer)
 // pinned to the bottom rows.
 const idle = (editor = "", below = []) =>
-  "\n" + [...Array(ROWS - 5 - below.length).fill(""), BORDER, editor, BORDER, ...below, "~/cwd", "0.9%/128k (auto)                                                       harness-1"].join("\n");
+  "\n" + [...Array(ROWS - 5 - below.length).fill(""), BORDER, editor, BORDER, ...below, "~/cwd", "0.8%/128k (auto)                                                       harness-1"].join("\n");
 
 const USAGE = screen(`
 ────────────────────────────────────────────────────────────────────────────────
 
-Context Usage                                       harness-1 · 1.1k/128k (0.9%)
+Context Usage                                         harness-1 · 1k/128k (0.8%)
 
   ◧ ■ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   Category:
-  ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   → ■ System Prompt ........ 340     0.3%
+  ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   → ■ System Prompt ........ 250     0.2%
   ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶     ■ Built-in Tools ....... 641     0.5%
   ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶     ⛝ Auto-Compact Buffer .. 16.4k   13%
-  ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶     ⛶ Free Space ........... 110.6k  86%
+  ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶     ⛶ Free Space ........... 110.7k  87%
   ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶
   ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   Map:
   ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶     ■ - Single category block
@@ -54,12 +54,12 @@ const INJECTIONS = screen(`
 
 Context Injections · [INITIAL]
 
-→ pi ..................... 981
-  ├─ System Prompt ....... 340
-  │  ├─ Preamble ......... 43
-  │  ├─ Available Tools .. 80
-  │  ├─ Guidelines ....... 206
-  │  ├─ Documentation .... 10
+→ pi ..................... 891
+  ├─ System Prompt ....... 250
+  │  ├─ Preamble ......... 32
+  │  ├─ Available Tools .. 64
+  │  ├─ Guidelines ....... 144
+  │  ├─ Documentation .... 9
   │  └─ Current Dir ...... 1
   └─ Built-in Tools (4) .. 641
      ├─ edit ............. 278
@@ -67,7 +67,7 @@ Context Injections · [INITIAL]
      ├─ bash ............. 119
      └─ write ............ 90
 
-  TOTAL .................. 981
+  TOTAL .................. 891
 
 
 

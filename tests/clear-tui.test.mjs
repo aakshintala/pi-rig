@@ -17,7 +17,7 @@ test("/clear starts a new session with an empty transcript", async (t) => {
 
 ${BORDER}
 ~/cwd
-↑3 ↓1 W3 CH0.0% 0.0%/128k (auto)                                       harness-1`);
+↓1 W3 CH0.0% 0.0%/128k (auto)                                          harness-1`);
   tui.type("/clear");
   tui.keys("Enter");
   await tui.waitForEvent("session_start", 2);

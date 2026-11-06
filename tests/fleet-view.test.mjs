@@ -206,7 +206,7 @@ test("finished rows leave 10 s after they finish, without a prompt; a prompt doe
   await tui.waitForEvent("agent_end");
   const chat = (fleet) =>
     screen(["", " go", "", "", " ok", ""], fleet, {
-      footer: ["~/cwd", "↑2 ↓1 W2 CH0.0% 0.0%/128k (auto)                                       harness-1"],
+      footer: ["~/cwd", "↓1 W2 CH0.0% 0.0%/128k (auto)                                          harness-1"],
     });
   await tui.waitForScreen(chat([
     " ● main",
@@ -395,7 +395,7 @@ test("notices are one compact themed line; a failure shows its error", async (t)
     screen(
       ["", " ✓ agent scout · done 5s · found 3 files", "", " ✗ shell npm test · failed 7s", "   exit 1", "   Error: boom", "", " noted", "", " ● monitor ci watch · 7s · build 42 passed", "", " noted too", ""],
       [" ● main", "   agent scout · done 5s", "    └─ found 3 files second line", "   monitor ci watch · 7s"],
-      { footer: ["~/cwd", "↑26 ↓5 R16 W26 CH44.4% 0.0%/128k (auto)                                harness-1"] },
+      { footer: ["~/cwd", "↓5 R16 W26 CH61.5% 0.0%/128k (auto)                                    harness-1"] },
     ),
   );
 });

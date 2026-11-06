@@ -74,7 +74,7 @@ for (const [extensions, fullscreen] of [[[EXT, TODO, OTHER], false], [[OTHER, TO
 test("queue section above the editor; Option+Up/Down/X edit rows in Pi's editor and the draft comes back", async (t) => {
   const tui = await start(t, [gateCall, "Steered.", "Followed."]);
   const top = [" go", "", "", "", " gate"];
-  const statsLine = "↑2 ↓2 W2 CH0.0% 0.0%/128k (auto)";
+  const statsLine = "↓2 W2 CH0.0% 0.0%/128k (auto)";
   const rows = (...queue) => [...queue, ...dock("my draft", statsLine)];
   tui.type("first");
   tui.keys("Enter"); // steering
@@ -110,7 +110,7 @@ test("queue section above the editor; Option+Up/Down/X edit rows in Pi's editor 
   await tui.waitForScreen(
     FULLSCREEN(
       [...top, " released", "", "", " Steered.", "", "", " second edited", "", "", " Followed."],
-      idle("my draft", "↑23 ↓7 R15 W24 CH39.4% 0.0%/128k (auto)"),
+      idle("my draft", "↓7 R15 W23 CH56.5% 0.0%/128k (auto)"),
     ),
   );
 });
@@ -144,7 +144,7 @@ test("Esc while editing requeues the edited steer and aborts the current turn", 
 test("/compact and /reload typed while the agent works wait for it, with no error or warning", async (t) => {
   const tui = await start(t, [gateCall, "Done."]);
   const top = [" go", "", "", "", " gate"];
-  const statsLine = "↑2 ↓2 W2 CH0.0% 0.0%/128k (auto)";
+  const statsLine = "↓2 W2 CH0.0% 0.0%/128k (auto)";
   const queued = [" Follow-ups (2) · after the run", " ⚙ /compact · runs when idle", " ⚙ /reload · runs when idle"];
   tui.type("/compact");
   tui.keys("Enter");
@@ -162,7 +162,7 @@ test("/compact and /reload typed while the agent works wait for it, with no erro
   await tui.waitForScreen(
     FULLSCREEN(
       [...top, " released", "", "", " Done.", "", " Reloaded keybindings, extensions, skills, prompts, themes, and context files", ""],
-      idle("draft kept", "↑13 ↓4 R2 W14 CH8.0% 0.0%/128k (auto)"),
+      idle("draft kept", "↓4 R2 W13 CH15.4% 0.0%/128k (auto)"),
     ),
   );
 });

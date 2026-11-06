@@ -59,11 +59,11 @@ test("a run of calls is one live summary line; failures stay folded; text makes 
 
  ${bullet} Wrote 1 file +2
 `;
-  await tui.waitForScreen(rows([...top("⏺").replace(/^\n/, "").split("\n")], [`── ~ Working ${"─".repeat(67)}`, "", RULE, "~/cwd", "↑2 ↓62 W2 CH0.0% 0.1%/128k (auto)                                      harness-1"]));
+  await tui.waitForScreen(rows([...top("⏺").replace(/^\n/, "").split("\n")], [`── ~ Working ${"─".repeat(67)}`, "", RULE, "~/cwd", "↓62 W2 CH0.0% 0.1%/128k (auto)                                         harness-1"]));
 
   writeFileSync(join(tui.cwd, "go"), "");
   await tui.waitForEvent("agent_end");
-  await tui.waitForScreen(rows([...top("⏺").replace(/^\n/, "").split("\n"), " Done."], ["", RULE, "", RULE, "~/cwd", "↑141 ↓64 R2 W141 CH0.7% 0.2%/128k (auto)                               harness-1"]));
+  await tui.waitForScreen(rows([...top("⏺").replace(/^\n/, "").split("\n"), " Done."], ["", RULE, "", RULE, "~/cwd", "↓64 R2 W141 CH1.4% 0.1%/128k (auto)                                    harness-1"]));
 
   tui.keys("C-o");
   await tui.waitForScreen(rows([
@@ -91,18 +91,18 @@ test("a run of calls is one live summary line; failures stay folded; text makes 
     " Done.",
     "",
     " Tool output: expanded",
-  ], ["", RULE, "", RULE, "~/cwd", "↑141 ↓64 R2 W141 CH0.7% 0.2%/128k (auto)                               harness-1"]));
+  ], ["", RULE, "", RULE, "~/cwd", "↓64 R2 W141 CH1.4% 0.1%/128k (auto)                                    harness-1"]));
 });
 
 test("Esc counts calls with no result as cancelled", async (t) => {
   const tui = await start(t, [[call("c1", "read", { path: "a.txt" }), call("c2", "wait", { file: "x" }), call("c3", "wait", { file: "y" })], "Done."]);
   await tui.waitForEvent("tool_execution_end"); // the read is done, both waits are running
   await tui.waitForScreen(rows(["", " go", "", "", " ⏺ Read 1 file, waited on 2 files"], [`── ~ Working ${"─".repeat(67)}`, "", RULE, "~/cwd",
-    "↑2 ↓15 W2 CH0.0% 0.0%/128k (auto)                                      harness-1"]));
+    "↓15 W2 CH0.0% 0.0%/128k (auto)                                         harness-1"]));
   tui.keys("Escape");
   await tui.waitForEvent("agent_end");
   await tui.waitForScreen(rows(["", " go", "", "", " ⏺ Read 1 file, waited on 2 files", "", " Error: This operation was aborted"],
-    ["", RULE, "", RULE, "~/cwd", "↑2 ↓15 W2 0.0%/128k (auto)                                             harness-1"]));
+    ["", RULE, "", RULE, "~/cwd", "↓15 W2 0.0%/128k (auto)                                                harness-1"]));
 });
 
 test("a click on a group toggles that group only", async (t) => {
@@ -110,7 +110,7 @@ test("a click on a group toggles that group only", async (t) => {
   const tui = await start(t, [[read("c1", "a.txt"), read("c2", "b.txt"), text("and"), read("c3", "b.txt")], "Done."]);
   await tui.waitForEvent("agent_end");
   const screen = (...groups) => rows(["", " go", "", "", " and", "", ...groups, "", " Done."],
-    ["", RULE, "", RULE, "~/cwd", "↑50 ↓20 R2 W50 CH2.0% 0.1%/128k (auto)                                 harness-1"]);
+    ["", RULE, "", RULE, "~/cwd", "↓20 R2 W50 CH4.0% 0.0%/128k (auto)                                     harness-1"]);
   const collapsed = screen(" ⏺ Read 2 files", "", " ⏺ Read 1 file");
   await tui.waitForScreen(collapsed);
   const row = (line) => tui.screen().split("\n").indexOf(line) + 1;

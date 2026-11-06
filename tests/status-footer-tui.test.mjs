@@ -59,7 +59,7 @@ test("two-line footer; the dirty mark appears after a tool writes a file", async
       BORDER,
       "",
       BORDER,
-      "harness-1 off  │  in 26 out 12 cache 4% $0.000  │  ctx [░░░░░░░░░░] 0%",
+      "harness-1 off  │  in 0 out 12 cache 7% $0.000  │  ctx [░░░░░░░░░░] 0%",
       "~/cwd main*  │  Q claude 78%/41% · codex 12%  │  TTFT -- · TPS --",
     ],
   ));

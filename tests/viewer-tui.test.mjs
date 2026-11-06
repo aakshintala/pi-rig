@@ -128,7 +128,7 @@ test("main-session output while a viewer is open lands in the main chat", async 
 
   await tui.fx({ notify: "a", text: "build 42 passed" }); // starts a main turn; typing the command leaves FleetView
   await tui.waitForEvent("agent_end");
-  const footer = ["~/cwd", "↑5 ↓2 W5 CH0.0% 0.0%/128k (auto)                                       harness-1"];
+  const footer = ["~/cwd", "↓2 W5 CH0.0% 0.0%/128k (auto)                                          harness-1"];
   await tui.waitForScreen(viewing(footer));
 
   tui.keys("Escape");
@@ -280,7 +280,7 @@ test("in regular mode the viewer is the overlay, so it can follow, pause and jum
   tui.type("hi");
   tui.keys("Enter");
   await tui.waitForEvent("agent_end");
-  const footer = ["~/cwd", "↑2 ↓3 W2 CH0.0% 0.0%/128k (auto)                                       harness-1"];
+  const footer = ["~/cwd", "↓3 W2 CH0.0% 0.0%/128k (auto)                                          harness-1"];
   const main = "\n" + [...["", " hi", "", "", " hello back", ""], BORDER, "", BORDER, ...rows("main"), ...footer, ...Array(ROWS).fill("")].slice(0, ROWS).join("\n");
   await tui.waitForScreen(main);
 
@@ -321,7 +321,7 @@ test("Esc puts the chat back even when the viewer's slot was replaced", async (t
   tui.type("hi");
   tui.keys("Enter");
   await tui.waitForEvent("agent_end");
-  const footer = ["~/cwd", "↑2 ↓3 W2 CH0.0% 0.0%/128k (auto)                                       harness-1"];
+  const footer = ["~/cwd", "↓3 W2 CH0.0% 0.0%/128k (auto)                                          harness-1"];
   const main = screen(["", " hi", "", "", " hello back"], rows("main"), { footer });
   await tui.waitForScreen(main);
   tui.keys("Down", "Down", "Enter");
@@ -349,7 +349,7 @@ for (const [order, extensions] of [
       },
     });
     const working = "── ● Working " + "─".repeat(67);
-    const footer = ["~/cwd", "↑2 ↓2 W2 CH0.0% 0.0%/128k (auto)                                       harness-1"];
+    const footer = ["~/cwd", "↓2 W2 CH0.0% 0.0%/128k (auto)                                          harness-1"];
     const steered = rows("b", { b: "0s · steered: go left" });
     tui.keys("Down", "Down", "Down", "Enter");
     await tui.waitForScreen(screen(agentView([]), rows("b", {}, "b"), { footer, border: working }));
@@ -364,7 +364,7 @@ for (const [order, extensions] of [
 
     writeFileSync(join(tui.cwd, "release-1"), "");
     await tui.waitForEvent("agent_end");
-    const after = ["~/cwd", "↑16 ↓3 R2 W17 CH6.5% 0.0%/128k (auto)                                  harness-1"];
+    const after = ["~/cwd", "↓3 R2 W16 CH12.5% 0.0%/128k (auto)                                     harness-1"];
     await tui.waitForScreen(screen(view, steered, { footer: after }));
     tui.keys("Escape");
     await tui.waitForScreen(
@@ -391,7 +391,7 @@ for (const [order, extensions] of [
       },
     });
     const working = "── ● Working " + "─".repeat(67);
-    const footer = ["~/cwd", "↑2 ↓2 W2 CH0.0% 0.0%/128k (auto)                                       harness-1"];
+    const footer = ["~/cwd", "↓2 W2 CH0.0% 0.0%/128k (auto)                                          harness-1"];
     const opts = (above, editor = "") => ({ footer, border: working, above, editor });
     tui.keys("Down", "Down", "Down", "Enter");
     await tui.waitForScreen(screen(agentView([]), rows("b", {}, "b"), opts([" Steering (1) · next turn", "   first"])));

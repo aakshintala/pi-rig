@@ -10,7 +10,7 @@ import { liveGroup, startTui } from "./helpers/tui.mjs";
 const EXTENSION = fileURLToPath(new URL("../extensions/tool-display/index.ts", import.meta.url));
 const WORKSPACE = fileURLToPath(new URL("./fixtures/tool-display/workspace", import.meta.url));
 const RULE = "─".repeat(80);
-const FOOTER = ["", RULE, "", RULE, "~/cwd", "↑22 ↓14 R2 W23 CH4.7% 0.0%/128k (auto)                                 harness-1"];
+const FOOTER = ["", RULE, "", RULE, "~/cwd", "↓14 R2 W22 CH9.1% 0.0%/128k (auto)                                     harness-1"];
 // Fullscreen mode on the 24-row pane: the chat on top, blank rows in the middle and
 // the dock pinned to the bottom (the last 6 rows).
 const rows = (...top) => {

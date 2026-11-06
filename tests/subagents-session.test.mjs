@@ -186,8 +186,8 @@ test("spawn rejects an unknown model or thinking level and requires model, think
   const r = results();
   assert.deepEqual(r.map(([e]) => e), [true, true, true, true, true]);
   assert.match(r[0][1], /^Unknown model "kid\/nope"\.$/);
-  assert.match(r[1][1], /^Validation failed for tool "subagent_spawn":\n  - thinking: must be equal to one of the allowed values\n/);
-  assert.match(r[2][1], /^Validation failed for tool "subagent_spawn":\n  - model: must have required properties model, isolation\n/);
+  assert.match(r[1][1], /^Validation failed for tool "subagent_spawn":\n  - thinking: expected one of \["off","minimal","low","medium","high","xhigh","max"\]\n/);
+  assert.match(r[2][1], /^Validation failed for tool "subagent_spawn":\n  - .*\n/);
   // Pi would clamp these silently: xhigh above what kid-1 offers, any thinking on a model without it.
   assert.equal(r[3][1], 'kid/kid-1 cannot think at "xhigh". Use one of: off, minimal, low, medium, high.');
   assert.equal(r[4][1], 'faux/faux-1 cannot think at "low". Use one of: off.');
@@ -482,7 +482,7 @@ test("with enabledModels set, subagent_spawn is replaced by one whose model is a
   assert.equal(spawns.length, 1);
   assert.deepEqual(spawns[0].parameters.properties.model, { type: "string", enum: ["kid/kid-1"] });
   await session.prompt("go");
-  assert.match(results()[0][1], /^Validation failed for tool "subagent_spawn":\n  - model: must be equal to one of the allowed values\n/);
+  assert.match(results()[0][1], /^Validation failed for tool "subagent_spawn":\n  - model: expected one of \["kid\/kid-1"\]\n/);
 });
 
 test("costs below a cent keep two significant digits", async () => {

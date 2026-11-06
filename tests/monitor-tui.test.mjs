@@ -11,7 +11,7 @@ const path = (p) => fileURLToPath(new URL(p, import.meta.url));
 const EXTENSIONS = [path("../extensions/fleet/index.ts"), path("../extensions/monitor/index.ts"), path("./fixtures/jobs/clock.ts")];
 const ROWS = 24;
 // Token counts in the footer after each turn.
-const USAGE = ["↑83 ↓18 R71 W84 CH70.4% 0.1%/128k (auto)", "↑97 ↓20 R154 W98 CH74.8% 0.1%/128k (auto)", "↑134 ↓20 R251 W136 CH56.4% 0.1%/128k (auto)"];
+const USAGE = ["↓18 R71 W83 CH83.1% 0.1%/128k (auto)", "↓20 R154 W97 CH85.6% 0.1%/128k (auto)", "↓20 R251 W134 CH72.4% 0.1%/128k (auto)"];
 const KEYS = " Enter to view · x to stop · ctrl+x ctrl+k to stop all agents";
 const BORDER = "─".repeat(80);
 const FOOTER = (usage) => ["~/cwd", usage.padEnd(80 - "harness-1".length) + "harness-1"];
