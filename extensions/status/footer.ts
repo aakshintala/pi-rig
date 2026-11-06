@@ -6,10 +6,11 @@
 import type { ExtensionAPI, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { blankRepoFilters, GIT_LIMITS, runGit } from "../../shared/git/index.ts"; // no repo code runs
 import { formatCount, oneLine } from "../../shared/text/index.ts"; // cwd, branch, model and provider ids come from outside
-import { captureAge, errorAction, type Feed } from "./quota.ts";
+import type { Feed } from "./quota.ts";
 
 export const GIT_DEBOUNCE_MS = 300;
 const CTX_WARN = 70, CTX_DANGER = 90;
+const QUOTA_WARN = 50, QUOTA_DANGER = 20;
 const THINKING = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
 
 type Timers = Pick<typeof globalThis, "setTimeout" | "clearTimeout">;
@@ -86,7 +87,7 @@ export interface Snapshot {
 }
 
 /** The footer's two lines, before truncation to the terminal width. */
-export function footerLines(s: Snapshot, theme: Pick<Theme, "fg">, now = Date.now()): string[] {
+export function footerLines(s: Snapshot, theme: Pick<Theme, "fg">): string[] {
   const fg = theme.fg.bind(theme);
   const dim = (x: string) => fg("dim", x);
   const sep = `  ${dim("│")}  `;
@@ -112,28 +113,14 @@ export function footerLines(s: Snapshot, theme: Pick<Theme, "fg">, now = Date.no
   const bottom = [branch ? `${cwd} ${fg("accent", branch)}${s.dirty ? fg("warning", "*") : ""}` : cwd];
   if (s.feed === null) bottom.push(dim("Q unavailable"));
   else if (s.feed) {
-    const parts = s.feed.providers.map((pr) => {
-      const age = captureAge(pr, now);
-      const notes = [];
-      if (pr.status === "unknown") notes.push("unknown");
-      if (age.label === "unknown age" && pr.status !== "unknown") notes.push("unknown age");
-      else if (age.label.startsWith("stale")) notes.push(age.label);
-      if (pr.errorCode) {
-        const action = errorAction(pr.errorCode);
-        const code = pr.errorCode.replaceAll("_", " ");
-        notes.push(action ? `${code}; ${action}` : code);
-      }
-      const meters = pr.quotas.map((q) => {
-        if (q.percentRemaining !== null) return `${Math.round(q.percentRemaining)}%`;
-        if (q.balanceRemaining !== null) return q.balanceUnit === "credits" ? `${q.balanceRemaining} credits` : `$${q.balanceRemaining.toFixed(2)}`;
-        if (q.unitsUsed !== null && q.unitsLimit !== null) return `${q.unitsUsed}/${q.unitsLimit}`;
-        return "?";
+    const parts = s.feed.providers
+      .filter((pr) => !pr.unavailable && pr.quotas.some((q) => typeof q.percentRemaining === "number"))
+      .map((pr) => {
+        // Balance-only buckets (null percent) have no headroom to colour.
+        const left = pr.quotas.flatMap((q) => (typeof q.percentRemaining === "number" ? [q.percentRemaining] : []));
+        const min = Math.min(...left); // colour from the exact value, not the rounded text
+        return fg(min < QUOTA_DANGER ? "error" : min < QUOTA_WARN ? "warning" : "text", `${oneLine(pr.id)} ${left.map((v) => `${Math.round(v)}%`).join("/")}`);
       });
-      if (!meters.length && !notes.length) notes.push("unknown");
-      const color = age.label === "unknown age" || pr.status === "unknown" || !meters.length ? "warning" : pr.status === "healthy" ? "text" : pr.status === "warning" ? "warning" : pr.status === "critical" || pr.status === "depleted" ? "error" : "warning";
-      const detail = [...notes, meters.join("/")].filter(Boolean).join(" ");
-      return fg(color, `${oneLine(pr.id)} ${detail}`);
-    });
     if (parts.length) bottom.push(`${dim("Q")} ${parts.join(dim(" · "))}`);
   }
   const perf = s.perf;
@@ -246,12 +233,7 @@ export function registerFooter(pi: ExtensionAPI, { timers = globalThis, now = Da
           if (render === bump) render = () => {}; // a newer footer keeps its own
         },
         render: (width: number) => {
-          const renderedAt = now();
-          const ages = feed?.providers.map((provider) => {
-            const label = captureAge(provider, renderedAt).label;
-            return label.startsWith("stale") || label === "unknown age" ? label : "fresh";
-          }).join("|") ?? "";
-          const key = `${width}:${version}:${ages}`;
+          const key = `${width}:${version}`;
           if (cached && cacheKey === key) return cached;
           cacheKey = key;
           return (cached = footerLines(
@@ -267,7 +249,6 @@ export function registerFooter(pi: ExtensionAPI, { timers = globalThis, now = Da
               perf,
             },
             theme,
-            renderedAt,
           ).map((line) => truncateToWidth(line, width)));
         },
       };

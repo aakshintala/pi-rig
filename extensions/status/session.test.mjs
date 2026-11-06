@@ -9,12 +9,10 @@ import { fauxAssistantMessage, fauxText, fauxToolCall, scriptedSession } from ".
 import "../../tests/fixtures/tool-display/pi-tui.mjs"; // before the extension, which draws with pi-tui
 const { default: status } = await import("./index.ts");
 
-const capturedAt = new Date().toISOString();
 const FEED = {
-  schemaVersion: 1, generatedAt: capturedAt, disabledProviderIds: [],
   providers: [
-    { id: "claude", name: "Claude", tier: "Max", capturedAt, ageSeconds: 0, freshness: "fresh", errorCode: null, status: "healthy", quotas: [{ key: "session", label: "Session", percentRemaining: 78, balanceRemaining: null, balanceUsed: null, balanceCap: null, balanceUnit: null, unitsUsed: null, unitsLimit: null, resetsAt: null, resetText: null, status: "healthy" }] },
-    { id: "codex", name: "Codex", tier: "PLUS", capturedAt, ageSeconds: 0, freshness: "fresh", errorCode: null, status: "healthy", quotas: [{ key: "weekly", label: "Weekly", percentRemaining: 24, balanceRemaining: null, balanceUsed: null, balanceCap: null, balanceUnit: null, unitsUsed: null, unitsLimit: null, resetsAt: null, resetText: null, status: "healthy" }] },
+    { id: "claude", tier: "Max", status: "healthy", quotas: [{ label: "Session", percentRemaining: 78, status: "healthy" }] },
+    { id: "codex", tier: "PLUS", status: "healthy", quotas: [{ label: "Weekly", percentRemaining: 24, status: "healthy" }] },
   ],
 };
 
