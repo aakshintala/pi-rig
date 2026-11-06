@@ -1,147 +1,399 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import "../../tests/fixtures/tool-display/pi-tui.mjs";
-const { compact, createQuotaClient, full, parseFeed, registerQuota, CALL_TIMEOUT_MS, FOOTER_TIMEOUT_MS, MAX_TOOL_CHARS } = await import("./quota.ts");
+import "../../tests/fixtures/tool-display/pi-tui.mjs"; // before quota.ts, which draws with pi-tui
+const { compact, createQuotaClient, full, registerQuota } = await import("./quota.ts");
 
-const provider = (overrides = {}) => ({
-  id: "claude", name: "Claude", tier: "Max", capturedAt: "2026-11-04T11:59:00Z", ageSeconds: 60,
-  freshness: "fresh", errorCode: null, status: "healthy",
-  quotas: [{ key: "session", label: "Session", percentRemaining: 78.4, balanceRemaining: null, balanceUsed: null, balanceCap: null, balanceUnit: null,
-    unitsUsed: null, unitsLimit: null, resetsAt: "2026-11-04T12:59:00Z", resetText: "Resets in 1h", status: "healthy" }], ...overrides,
-});
-const feed = (providers = [provider()]) => ({ schemaVersion: 1, generatedAt: "2026-11-04T12:00:00Z", disabledProviderIds: [], providers });
-const FEED = feed([
-  provider(),
-  provider({ id: "codex", name: "Codex", tier: null, quotas: [{ key: "credits", label: "Credits", percentRemaining: null, balanceRemaining: 12.34, balanceUsed: 1, balanceCap: 13.34, balanceUnit: "usd", unitsUsed: null, unitsLimit: null, resetsAt: null, resetText: null, status: "warning" }], status: "warning" }),
-  provider({ id: "cursor", name: "Cursor", tier: "Pro", quotas: [{ key: "monthly", label: "Monthly", percentRemaining: 50, balanceRemaining: null, balanceUsed: null, balanceCap: null, balanceUnit: null, unitsUsed: 30320, unitsLimit: 38298, resetsAt: null, resetText: null, status: "healthy" }] }),
-  provider({ id: "muse", name: "Muse", tier: null, capturedAt: null, ageSeconds: null, freshness: "unknown", errorCode: "busy", status: "unknown", quotas: [] }),
-]);
+const FEED = {
+  providers: [
+    { id: "claude", tier: "Max", status: "healthy", quotas: [
+      { label: "Session", percentRemaining: 78, resetText: "Resets in 57m", resetsAt: null, status: "healthy" },
+      { label: "Weekly", percentRemaining: 76.4, status: "healthy" },
+    ] },
+    { id: "cursor", tier: "PRO", status: "healthy", quotas: [
+      { label: "Monthly", percentRemaining: 20.8, unitsUsed: 30320, unitsLimit: 38298, status: "healthy" },
+    ] },
+    { id: "go", status: "depleted", quotas: [
+      { label: "Monthly", percentRemaining: 0, resetsAt: new Date(Date.now() + 90 * 60_000 + 30_000).toISOString(), status: "depleted" },
+    ] },
+    { id: "gemini", unavailable: "not signed in", quotas: [] },
+  ],
+  disabledProviderIds: ["zai"],
+};
 
-function fakeTimers() {
-  let id = 0; const timeouts = new Map(), intervals = new Map();
-  return { timeouts, intervals, setTimeout: (f, ms) => (timeouts.set(++id, { f, ms }), id), clearTimeout: (i) => timeouts.delete(i),
-    setInterval: (f, ms) => (intervals.set(++id, { f, ms }), id), clearInterval: (i) => intervals.delete(i), fireTimeouts: () => [...timeouts.values()].forEach((t) => t.f()), tick: () => [...intervals.values()].forEach((t) => t.f()) };
-}
+// Loopback feed. `hold` parks requests until release() so tests control timing.
 async function feedServer({ body = FEED, hold = false } = {}) {
-  const parked = []; let hits = 0;
-  const server = createServer((_req, res) => { hits++; const reply = () => res.end(JSON.stringify(body)); hold ? parked.push(reply) : reply(); });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  return { port: server.address().port, hits: () => hits, release: () => parked.splice(0).forEach((f) => f()), close: () => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }) };
+  const parked = [];
+  let hits = 0;
+  const server = createServer((req, res) => {
+    hits++;
+    const reply = () => res.end(JSON.stringify(body));
+    hold ? parked.push(reply) : reply();
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  return {
+    port: server.address().port,
+    hits: () => hits,
+    release: () => parked.splice(0).forEach((f) => f()),
+    close: () => new Promise((r) => { server.closeAllConnections(); server.close(r); }),
+  };
 }
-function client(srv, extra = {}) { return createQuotaClient({ port: () => srv.port, refreshMs: () => 60_000, timers: fakeTimers(), ...extra }); }
-async function waitFor(cond) { for (let i = 0; i < 1000 && !cond(); i++) await new Promise((r) => setTimeout(r, 2)); assert.ok(cond(), "condition never held"); }
 
-const clone = (v) => structuredClone(v);
-test("v1 errorCode accepts only documented values and explicit null", () => {
-  const known = ["credentials_missing", "login_expired", "keychain_blocked", "subscription_unavailable", "cooldown", "rate_limited", "network_error", "configuration_error", "busy", "provider_error", "persistence_error", "internal_error"];
-  for (const errorCode of [null, ...known]) assert.ok(parseFeed(feed([provider({ errorCode })])), `accepted ${errorCode}`);
-  for (const errorCode of ["raw provider response", "toString", "constructor", "__proto__"]) {
-    assert.equal(parseFeed(feed([provider({ errorCode })])), null, `rejected ${errorCode}`);
-  }
+// Manual timers: nothing fires until the test says so.
+function fakeTimers() {
+  let id = 0;
+  const timeouts = new Map(), intervals = new Map();
+  return {
+    timeouts, intervals,
+    setTimeout: (f, ms) => (timeouts.set(++id, { f, ms }), id),
+    clearTimeout: (i) => timeouts.delete(i),
+    setInterval: (f, ms) => (intervals.set(++id, { f, ms }), id),
+    clearInterval: (i) => intervals.delete(i),
+    fireTimeouts: () => [...timeouts.values()].forEach((t) => t.f()),
+    tick: () => [...intervals.values()].forEach((t) => t.f()),
+  };
+}
+
+function client(srv, extra = {}) {
+  return createQuotaClient({ port: () => srv.port, refreshMs: () => 60_000, timers: fakeTimers(), ...extra });
+}
+
+test("concurrent gets merge into one fetch", async (t) => {
+  const srv = await feedServer({ hold: true });
+  t.after(srv.close);
+  const c = client(srv);
+  const all = Promise.all([c.get(), c.get({ force: true }), c.get()]);
+  await waitFor(() => srv.hits() === 1);
+  srv.release();
+  const [a, b, d] = await all;
+  assert.equal(srv.hits(), 1);
+  assert.equal(a.providers.length, 4);
+  assert.equal(a, b);
+  assert.equal(a, d);
 });
 
-test("strict v1 parser accepts explicit nulls, rejects old feed, wrong version and every omitted nullable field", () => {
-  assert.deepEqual(parseFeed(FEED), FEED);
-  assert.equal(parseFeed({ providers: FEED.providers }), null);
-  const wrong = clone(FEED); wrong.schemaVersion = 2; assert.equal(parseFeed(wrong), null);
-  for (const [object, field] of [["provider", "tier"], ["provider", "capturedAt"], ["provider", "ageSeconds"], ["provider", "errorCode"],
-    ["bucket", "percentRemaining"], ["bucket", "balanceRemaining"], ["bucket", "balanceUsed"], ["bucket", "balanceCap"], ["bucket", "balanceUnit"],
-    ["bucket", "unitsUsed"], ["bucket", "unitsLimit"], ["bucket", "resetsAt"], ["bucket", "resetText"]]) {
-    const malformed = clone(FEED); const target = object === "provider" ? malformed.providers[0] : malformed.providers[0].quotas[0]; delete target[field];
-    assert.equal(parseFeed(malformed), null, `${object}.${field} omission rejected`);
-  }
+test("cache-first: a fresh feed is served without fetching, a stale one refetches", async (t) => {
+  const srv = await feedServer();
+  t.after(srv.close);
+  let now = 1_000;
+  const c = client(srv, { now: () => now });
+  await c.get();
+  now += 59_000;
+  await c.get();
+  assert.equal(srv.hits(), 1);
+  await c.get({ force: true });
+  assert.equal(srv.hits(), 2);
+  now += 60_000;
+  await c.get();
+  assert.equal(srv.hits(), 3);
 });
 
-test("compact and full render amounts, pace status, reset, unknown, busy, actionable error and effective capture age", () => {
-  assert.match(compact(FEED.providers, Date.parse("2026-11-04T12:06:00Z")), /claude \(Max\): session 78%/);
-  assert.match(compact(FEED.providers, Date.parse("2026-11-04T12:06:00Z")), /stale 7m/);
-  assert.match(compact(FEED.providers), /codex: credits \$12\.34 left \(warning\)/);
-  assert.match(compact(FEED.providers), /cursor \(Pro\): monthly 50% \(30320\/38298\)/);
-  assert.match(compact(FEED.providers), /muse: unknown, busy; refresh is still in progress/);
-  assert.match(full(FEED, Date.parse("2026-11-04T12:00:00Z")), /resets in 59m/);
-  const err = feed([provider({ errorCode: "credentials_missing", freshness: "stale" })]);
-  assert.match(full(err), /sign in with the provider CLI/);
-  const httpFreshLie = feed([provider({ capturedAt: "2020-01-01T00:00:00Z", freshness: "fresh", ageSeconds: 0 })]);
-  assert.match(compact(httpFreshLie.providers, Date.parse("2026-11-04T12:00:00Z")), /stale/);
-  const oldStaleLabel = feed([provider({ capturedAt: "2026-11-04T11:59:00Z", freshness: "stale", ageSeconds: 999 })]);
-  assert.doesNotMatch(compact(oldStaleLabel.providers, Date.parse("2026-11-04T12:00:00Z")), /stale/);
-  const future = feed([provider({ capturedAt: "2027-01-01T00:00:00Z" })]);
-  assert.match(compact(future.providers, Date.parse("2026-11-04T12:00:00Z")), /unknown age/);
+test("a fetch that outlives its timeout resolves null", async (t) => {
+  const srv = await feedServer({ hold: true });
+  t.after(srv.close);
+  const timers = fakeTimers();
+  const c = client(srv, { timers });
+  const p = c.get();
+  await waitFor(() => srv.hits() === 1);
+  assert.deepEqual([...timers.timeouts.values()].map((x) => x.ms), [8_000]);
+  timers.fireTimeouts();
+  assert.equal(await p, null);
+  assert.equal(timers.timeouts.size, 0);
 });
 
-test("coalesces concurrent gets, validates same GET v1 route and shares parsed feed", async (t) => {
-  const srv = await feedServer({ hold: true }); t.after(srv.close); const c = client(srv);
-  const calls = Promise.all([c.get(), c.get({ force: true }), c.get()]); await waitFor(() => srv.hits() === 1); srv.release();
-  const [a, b, d] = await calls; assert.equal(srv.hits(), 1); assert.equal(a, b); assert.equal(b, d);
+test("an unreachable server or a bad feed resolves null", async () => {
+  const srv = await feedServer();
+  await srv.close();
+  assert.equal(await client(srv).get(), null);
+
+  const bad = await feedServer({ body: { nope: 1 } });
+  assert.equal(await client(bad).get(), null);
+  await bad.close();
 });
 
-test("cache age and forced refresh preserve one local client", async (t) => {
-  const srv = await feedServer(); t.after(srv.close); let now = 1000; const c = client(srv, { now: () => now });
-  const a = await c.get(); now += 59_000; assert.equal(await c.get(), a); assert.equal(srv.hits(), 1);
-  await c.get({ force: true }); assert.equal(srv.hits(), 2); now += 60_000; await c.get(); assert.equal(srv.hits(), 3);
+test("compact text: one line per provider, detail only where unhealthy", () => {
+  assert.equal(
+    compact(FEED.providers),
+    [
+      "claude (Max): session 78% · weekly 76%",
+      "cursor (PRO): monthly 21% (30320/38298)",
+      "go: monthly 0% (depleted, resets 1h30m)",
+      "gemini: unavailable, not signed in",
+    ].join("\n"),
+  );
+  assert.match(full(FEED), /Monthly: 0% left, resets in 1h30m, depleted/);
+  assert.match(full(FEED), /Disabled in QuotaBar: zai/);
 });
 
-test("keeps existing 8s tool and 5s footer timeouts and returns null after timeout", async (t) => {
-  assert.equal(CALL_TIMEOUT_MS, 8_000); assert.equal(FOOTER_TIMEOUT_MS, 5_000);
-  const srv = await feedServer({ hold: true }); t.after(srv.close); const timers = fakeTimers(); const c = client(srv, { timers }); const p = c.get();
-  await waitFor(() => srv.hits() === 1); assert.deepEqual([...timers.timeouts.values()].map((x) => x.ms), [8_000]); timers.fireTimeouts(); assert.equal(await p, null);
-});
-
-test("missing and unsupported v1 schema are actionable in get_quotas and /quota", async (t) => {
-  const missingSchema = clone(FEED); delete missingSchema.schemaVersion;
-  for (const [body, expected] of [[missingSchema, /without schemaVersion/], [{ ...FEED, schemaVersion: 2 }, /schema is unsupported/]]) {
-    const srv = await feedServer({ body }); t.after(srv.close);
-    const pi = fakePi(); registerQuota(pi, settings(srv.port), { timers: fakeTimers() });
-    const tool = (await pi.tools.get_quotas.execute("id", {})).content[0].text;
-    assert.match(tool, expected);
-    const notes = [];
-    await pi.commands.quota.handler("", { ui: { notify: (message) => notes.push(message) } });
-    assert.match(notes[0], expected);
-    assert.doesNotMatch(`${tool}${notes[0]}`, /raw provider|SyntaxError|JSON at/);
-  }
-});
-
-test("malformed and non-200 feeds fail safe without exposing response body", async (t) => {
-  for (const body of [{ secret: "raw body" }, FEED]) {
-    const srv = await feedServer({ body: body === FEED ? body : body }); t.after(srv.close);
-    if (body === FEED) continue;
-    assert.equal(await client(srv).get(), null);
-  }
-  const bad = await feedServer({ body: { ...FEED, schemaVersion: 7 } }); t.after(bad.close); assert.equal(await client(bad).get(), null);
-  const srv = await feedServer(); t.after(srv.close);
-  const c = createQuotaClient({ port: () => srv.port, refreshMs: () => 60_000, fetch: async () => new Response("synthetic secret", { status: 500 }) });
-  assert.equal(await c.get(), null);
-});
-
+// Fake pi: records handlers, tools and commands the way the runtime would call them.
 function fakePi() {
   const handlers = {}, tools = {}, commands = {};
-  return { handlers, tools, commands, on: (e, h) => (handlers[e] ??= []).push(h), registerTool: (t) => (tools[t.name] = t), registerCommand: (n, c) => (commands[n] = c),
-    emit: (e, ev = {}, ctx = {}) => (handlers[e] ?? []).forEach((h) => h(ev, ctx)) };
+  return {
+    handlers, tools, commands,
+    on: (e, h) => (handlers[e] ??= []).push(h),
+    registerTool: (t) => (tools[t.name] = t),
+    registerCommand: (n, c) => (commands[n] = c),
+    emit: (e, ev = {}, ctx = {}) => (handlers[e] ?? []).forEach((h) => h(ev, ctx)),
+  };
 }
-function settings(port) { const values = { quotaPort: port, quotaRefreshSeconds: 60 }, listeners = new Set(); return { get: (k) => values[k], onChange: (l) => (listeners.add(l), () => listeners.delete(l)), set: (k, v) => ((values[k] = v), listeners.forEach((l) => l(k, v))) }; }
+function settings(port) {
+  const values = { quotaPort: port, quotaRefreshSeconds: 60 }, listeners = new Set();
+  return {
+    get: (k) => values[k],
+    onChange: (l) => (listeners.add(l), () => listeners.delete(l)),
+    set: (k, v) => ((values[k] = v), listeners.forEach((l) => l(k, v))),
+  };
+}
 
-test("tool, /quota and footer listener use one client and no CLI/provider invocation", async (t) => {
-  const srv = await feedServer(); t.after(srv.close); const pi = fakePi(); const c = registerQuota(pi, settings(srv.port), { timers: fakeTimers() });
-  let notified; await pi.tools.get_quotas.execute("id", {}); await pi.commands.quota.handler("", { ui: { notify: (m) => notified = m } });
-  assert.match(notified, /Claude \(Max\): healthy/); assert.equal(srv.hits(), 1);
-  const observed = []; c.onFeed((v) => observed.push(v)); await c.get({ force: true }); assert.equal(observed.length, 1);
+test("polling runs only while a TUI session is active, across reloads", async (t) => {
+  const srv = await feedServer();
+  t.after(srv.close);
+  const timers = fakeTimers();
+
+  const pi1 = fakePi();
+  const c1 = registerQuota(pi1, settings(srv.port), { timers });
+  pi1.emit("session_start", { reason: "startup" }, { mode: "print" });
+  assert.equal(timers.intervals.size, 0);
+  pi1.emit("session_start", { reason: "startup" }, { mode: "tui" });
+  pi1.emit("session_start", { reason: "startup" }, { mode: "tui" });
+  assert.deepEqual([...timers.intervals.values()].map((x) => x.ms), [60_000]);
+  await c1.get(); // joins the startup fetch; a tick while it is in flight would merge into it
+  assert.equal(srv.hits(), 1);
+  timers.tick();
+  await waitFor(() => srv.hits() === 2);
+
+  // /reload: old runtime shuts down, a fresh factory run starts.
+  pi1.emit("session_shutdown", { reason: "reload" });
+  assert.equal(timers.intervals.size, 0);
+  const pi2 = fakePi();
+  registerQuota(pi2, settings(srv.port), { timers });
+  pi2.emit("session_start", { reason: "reload" }, { mode: "tui" });
+  assert.equal(timers.intervals.size, 1);
+
+  // Session switch, then quit; a second shutdown is a no-op.
+  pi2.emit("session_shutdown", { reason: "new" });
+  pi2.emit("session_shutdown", { reason: "quit" });
+  assert.equal(timers.intervals.size, 0);
 });
 
-test("tool output remains bounded for arbitrary provider and bucket counts", () => {
-  const many = Array.from({ length: 40 }, (_, i) => provider({ id: `p${i}`, name: `Provider ${i}`, quotas: [] }));
-  const text = compact(many); assert.ok(text.length <= MAX_TOOL_CHARS); assert.match(text, /more; pass provider/);
+test("shutdown aborts the in-flight fetch", async (t) => {
+  const srv = await feedServer({ hold: true });
+  t.after(srv.close);
+  const pi = fakePi();
+  const c = registerQuota(pi, settings(srv.port), { timers: fakeTimers() });
+  const p = c.get();
+  await waitFor(() => srv.hits() === 1);
+  pi.emit("session_shutdown", { reason: "quit" });
+  assert.equal(await p, null);
 });
 
-test("existing TUI-only polling lifecycle and port invalidation remain bounded", async (t) => {
-  const srv = await feedServer(); t.after(srv.close); const timers = fakeTimers(), pi = fakePi(), s = settings(srv.port);
-  registerQuota(pi, s, { timers }); pi.emit("session_start", {}, { mode: "print" }); assert.equal(timers.intervals.size, 0);
-  pi.emit("session_start", {}, { mode: "tui" }); assert.equal(timers.intervals.size, 1); pi.emit("session_shutdown"); assert.equal(timers.intervals.size, 0);
-  const second = await feedServer(); t.after(second.close); const pi2 = fakePi(), s2 = settings(srv.port), c = registerQuota(pi2, s2, { timers: fakeTimers() });
-  await c.get(); s2.set("quotaPort", second.port); await c.get(); assert.equal(srv.hits(), 1); assert.equal(second.hits(), 1);
+test("get_quotas and /quota share one client and report plainly", async (t) => {
+  const srv = await feedServer();
+  t.after(srv.close);
+  const pi = fakePi();
+  registerQuota(pi, settings(srv.port), { timers: fakeTimers() });
+  const run = async (params) => (await pi.tools.get_quotas.execute("id", params)).content[0].text;
+
+  assert.match(await run({}), /^claude \(Max\)[\s\S]*gemini/);
+  assert.equal(await run({ provider: "cursor" }), "cursor (PRO): monthly 21% (30320/38298)");
+  assert.match(await run({ provider: "nope" }), /Unknown provider nope; known: claude, cursor, go, gemini/);
+  const notes = [];
+  await pi.commands.quota.handler("", { ui: { notify: (m, type) => notes.push([m, type]) } });
+  assert.equal(notes[0][1], "info");
+  assert.match(notes[0][0], /^claude \(Max\): healthy\n  Session: 78% left, healthy\n  Weekly: 76% left, healthy\n/);
+  assert.equal(srv.hits(), 1);
+
+  const deadPi = fakePi();
+  registerQuota(deadPi, settings(srv.port), { timers: fakeTimers() });
+  await srv.close();
+  assert.equal((await deadPi.tools.get_quotas.execute("id", {})).content[0].text, `QuotaBar feed unavailable on port ${srv.port}; is QuotaBar.app running?`);
+  await deadPi.commands.quota.handler("", { ui: { notify: (m, type) => notes.push([m, type]) } });
+  assert.equal(notes[1][1], "warning");
 });
 
-test("session cleanup aborts a fetch so it cannot repopulate cache", async (t) => {
-  const srv = await feedServer({ hold: true }); t.after(srv.close); const pi = fakePi(); const c = registerQuota(pi, settings(srv.port), { timers: fakeTimers() });
-  const pending = c.get(); await waitFor(() => srv.hits() === 1); pi.emit("session_shutdown"); assert.equal(await pending, null);
+test("stop clears the aborted fetch so the next get fetches again", async (t) => {
+  const srv = await feedServer({ hold: true });
+  t.after(srv.close);
+  const c = client(srv);
+  const first = c.get();
+  await waitFor(() => srv.hits() === 1);
+  c.stop();
+  const next = c.get();
+  await waitFor(() => srv.hits() === 2);
+  srv.release();
+  assert.equal(await first, null);
+  assert.equal((await next).providers.length, 4);
+});
+
+test("joining a shorter in-flight fetch extends it to the caller's timeout", async (t) => {
+  const srv = await feedServer({ hold: true });
+  t.after(srv.close);
+  const timers = fakeTimers();
+  const c = client(srv, { timers });
+  const poll = c.get({ force: true, timeoutMs: 5_000 });
+  const tool = c.get();
+  c.get({ timeoutMs: 1_000 });
+  assert.deepEqual([...timers.timeouts.values()].map((x) => x.ms), [8_000]);
+  await waitFor(() => srv.hits() === 1);
+  srv.release();
+  assert.equal(await poll, await tool);
+});
+
+test("a failed refresh keeps the last good feed while it is fresh", async (t) => {
+  const srv = await feedServer();
+  let now = 0;
+  const c = client(srv, { now: () => now });
+  const good = await c.get();
+  await srv.close();
+  now = 30_000;
+  assert.equal(await c.get({ force: true }), good);
+  assert.equal(await c.get(), good);
+  now = 60_000;
+  assert.equal(await c.get({ force: true }), null);
+});
+
+test("a balance-only bucket shows its balance instead of a percentage", () => {
+  const codex = { id: "codex", status: "healthy", quotas: [
+    { label: "Weekly", percentRemaining: 60, status: "healthy" },
+    { label: "Credits", percentRemaining: null, balanceRemaining: 1234, balanceUnit: "credits", status: "healthy" },
+  ] };
+  const api = { id: "api", quotas: [{ label: "Spend", percentRemaining: 75, balanceRemaining: 12.3, balanceCap: 50, balanceUnit: "usd", status: "healthy" }] };
+  assert.equal(compact([codex, api]), "codex: weekly 60% · credits 1,234 credits left\napi: spend 75% ($12.30 left)");
+  assert.equal(full({ providers: [codex] }), "codex: healthy\n  Weekly: 60% left, healthy\n  Credits: 1,234 credits left, healthy");
+});
+
+test("an old QuotaBar feed still renders, ignoring resetText", () => {
+  const cursor = { id: "cursor", quotas: [{ label: "Monthly", percentRemaining: 20.8, resetText: "30320/38298 requests", status: "healthy" }] };
+  assert.equal(compact([cursor]), "cursor: monthly 21%");
+  assert.equal(full({ providers: [cursor] }), "cursor\n  Monthly: 21% left, healthy");
+});
+
+test("an unhealthy bucket without a reset time shows only its status", () => {
+  const p = { id: "x", quotas: [{ label: "Daily", percentRemaining: 10, status: "warning" }] };
+  assert.equal(compact([p]), "x: daily 10% (warning)");
+});
+
+test("get_quotas text stays within ~100 tokens for any feed", async (t) => {
+  const bucket = (i) => ({ label: `Bucket number ${i}`, percentRemaining: 50, unitsUsed: 12345, unitsLimit: 67890, status: "warning", resetsAt: null });
+  const providers = Array.from({ length: 40 }, (_, i) => ({ id: `provider-${i}`, tier: "Enterprise", quotas: Array.from({ length: 5 }, (_, j) => bucket(j)) }));
+  const big = compact(providers);
+  assert.ok(big.length <= 400, `${big.length} chars`);
+  assert.match(big, /^provider-0 [\s\S]*\n\+\d+ more; pass provider for one$/);
+  const one = compact([{ id: "wide", quotas: Array.from({ length: 60 }, (_, j) => bucket(j)) }]);
+  assert.ok(one.length <= 400 && one.endsWith("…"), `${one.length} chars`);
+
+  const srv = await feedServer({ body: { providers } });
+  t.after(srv.close);
+  const pi = fakePi();
+  registerQuota(pi, settings(srv.port), { timers: fakeTimers() });
+  for (const params of [{}, { provider: "provider-3" }, { provider: "nope" }]) {
+    const text = (await pi.tools.get_quotas.execute("id", params)).content[0].text;
+    assert.ok(text.length <= 400, `${JSON.stringify(params)}: ${text.length} chars`);
+  }
+});
+
+test("a new quotaRefreshSeconds restarts polling at the new interval", async (t) => {
+  const srv = await feedServer();
+  t.after(srv.close);
+  const timers = fakeTimers();
+  const s = settings(srv.port);
+  const pi = fakePi();
+  registerQuota(pi, s, { timers });
+  s.set("quotaRefreshSeconds", 30);
+  assert.equal(timers.intervals.size, 0);
+  pi.emit("session_start", { reason: "startup" }, { mode: "tui" });
+  s.set("quotaRefreshSeconds", 120);
+  assert.deepEqual([...timers.intervals.values()].map((x) => x.ms), [120_000]);
+  pi.emit("session_shutdown", { reason: "quit" });
+});
+
+test("an unparseable reset time is left out, not shown as soon", () => {
+  const q = { label: "Daily", percentRemaining: 10, status: "warning", resetsAt: "not a date" };
+  assert.equal(compact([{ id: "x", throttledUntil: "junk", quotas: [q] }]), "x: daily 10% (warning) [throttled, last known]");
+  assert.equal(full({ providers: [{ id: "x", quotas: [q] }] }), "x\n  Daily: 10% left, warning");
+});
+
+test("a provider without a status has no dangling colon in /quota", () => {
+  assert.equal(full({ providers: [{ id: "x", quotas: [] }] }), "x");
+});
+
+test("the provider filter ignores case", async (t) => {
+  const srv = await feedServer();
+  t.after(srv.close);
+  const pi = fakePi();
+  registerQuota(pi, settings(srv.port), { timers: fakeTimers() });
+  const text = (await pi.tools.get_quotas.execute("id", { provider: "Claude" })).content[0].text;
+  assert.equal(text, "claude (Max): session 78% · weekly 76%");
+});
+
+test("a new quotaPort applies to the next call, bypassing the cache", async (t) => {
+  const a = await feedServer(), b = await feedServer();
+  t.after(a.close);
+  t.after(b.close);
+  const s = settings(a.port);
+  const pi = fakePi();
+  registerQuota(pi, s, { timers: fakeTimers() });
+  await pi.tools.get_quotas.execute("id", {});
+  s.set("quotaPort", b.port);
+  await pi.tools.get_quotas.execute("id", {});
+  assert.deepEqual([a.hits(), b.hits()], [1, 1]);
+});
+
+// Polls the event loop for loopback I/O; returns as soon as cond holds.
+async function waitFor(cond) {
+  for (let i = 0; i < 1000 && !cond(); i++) await new Promise((r) => setTimeout(r, 2));
+  assert.ok(cond(), "condition never held");
+}
+
+test("a fetch aborted by invalidate never repopulates the cache", async () => {
+  // A fetch that ignores its abort signal: the old port's reply lands late.
+  let releaseOld;
+  const old = { providers: [{ id: "old", quotas: [] }] }, fresh = { providers: [{ id: "new", quotas: [] }] };
+  const replies = [new Promise((r) => (releaseOld = () => r(old))), Promise.resolve(fresh)];
+  const fetchFn = async () => ({ ok: true, json: () => replies.shift() });
+  const c = createQuotaClient({ port: () => 1, refreshMs: () => 60_000, timers: fakeTimers(), fetch: fetchFn });
+  const stale = c.get();
+  c.invalidate();
+  assert.equal((await c.get()).providers[0].id, "new");
+  releaseOld();
+  await stale;
+  assert.equal((await c.get()).providers[0].id, "new");
+});
+
+// A fetch that ignores its abort signal; settle(value) replies, settle(error) fails.
+function lateFetch() {
+  const f = { calls: 0 };
+  f.fetch = () => (f.calls++, new Promise((resolve, reject) => (f.settle = (v) => (v instanceof Error ? reject(v) : resolve({ ok: true, json: async () => v })))));
+  return f;
+}
+
+test("a fetch that settles after stop never touches the cache or its listeners", async () => {
+  for (const reply of [new Error("fetch failed"), { providers: [{ id: "late", quotas: [] }] }]) {
+    const f = lateFetch();
+    const c = createQuotaClient({ port: () => 1, refreshMs: () => 60_000, timers: fakeTimers(), fetch: f.fetch });
+    const heard = [];
+    c.onFeed((feed) => heard.push(feed));
+    const p = c.get();
+    c.stop();
+    f.settle(reply);
+    assert.equal(await p, null);
+    assert.deepEqual(heard, [], "no settle after stop");
+  }
+});
+
+test("a timeout that fires after the feed arrived still caches it and tells listeners", async () => {
+  const timers = fakeTimers();
+  let parse;
+  const fresh = { providers: [{ id: "fresh", quotas: [] }] };
+  const fetchFn = async () => ({ ok: true, json: () => new Promise((r) => (parse = () => r(fresh))) });
+  const c = createQuotaClient({ port: () => 1, refreshMs: () => 60_000, timers, fetch: fetchFn });
+  const heard = [];
+  c.onFeed((feed) => heard.push(feed));
+  const p = c.get();
+  await waitFor(() => parse);
+  timers.fireTimeouts();
+  parse();
+  assert.equal(await p, fresh);
+  assert.deepEqual(heard, [fresh]);
+  assert.equal(await c.get(), fresh, "served from the cache");
 });
