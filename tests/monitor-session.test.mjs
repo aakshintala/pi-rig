@@ -311,7 +311,7 @@ test("session shutdown kills the monitor without a notice", async (t) => {
 test("a monitor is tracked: a crash record, a place under the job cap, both released once its group is empty", async (t) => {
   setGroupLimit(1);
   t.after(() => setGroupLimit(MAX_GROUPS));
-  const s = await start(t);
+  const s = await start(t, { command: `trap '' TERM; exec sh ${SCRIPT}` });
   const pgid = await s.pgid();
   const record = s.log.replace(/\.log$/, ".pid");
   assert.match(basename(dirname(record)), /^pi-monitor-/, "reap scans this directory");
@@ -322,7 +322,10 @@ test("a monitor is tracked: a crash record, a place under the job cap, both rele
   await assert.rejects(tool.execute("c2", { command: "true", description: "x" }, undefined, undefined, {}), {
     message: "Not started: 1 jobs and monitors are running, the most allowed. Wait for one or stop one with jobs, then retry.",
   });
-  await settles(s.item.stop(), "the stop");
+  const stopped = s.item.stop();
+  assert.deepEqual(s.clock.pending(), [800], "SIGTERM leaves the kill grace on the fake clock");
+  s.clock.advance(800); // the child ignores SIGTERM, so close cannot win the race
+  await settles(stopped, "the stop");
   assert.equal(existsSync(record), false, "the empty group is forgotten with its record");
   assert.equal(tooManyJobs(), undefined);
 });
