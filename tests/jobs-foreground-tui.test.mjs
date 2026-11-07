@@ -50,7 +50,7 @@ const screen = (chat, top, below, usage) => {
   return "\n" + [...chat, ...Array(ROWS - dock.length - chat.length).fill(""), ...dock].join("\n");
 };
 const CHAT = ["", " go", "", "", ` ⏺ Bash(${COMMAND})`];
-const RUNNING = screen([...CHAT, ""], WORKING, [], "↑2 ↓17 W2 CH0.0% 0.0%/128k (auto)");
+const RUNNING = screen([...CHAT, ""], WORKING, [], "↓17 W2 CH0.0% 0.0%/128k (auto)");
 const ROW = [" ● main", "   1 shell running in background"]; // running shells share one row
 
 /** The job ID and log path the result names, read off the screen once it shows. */
@@ -65,7 +65,7 @@ test("Esc during a foreground command kills its group", async (t) => {
   tui.keys("Escape");
   await tui.waitForEvent("agent_end");
   const chat = [...CHAT, "   ⎿  Error: started", "", "", "      Command aborted", "", " Error: This operation was aborted", ""];
-  await tui.waitForScreen(screen(chat, BORDER, [], "↑2 ↓17 W2 0.0%/128k (auto)"));
+  await tui.waitForScreen(screen(chat, BORDER, [], "↓17 W2 0.0%/128k (auto)"));
   await poll(() => !liveGroup(tui.pgid).length, "the shell and its child to be gone"); // SIGKILL may follow SIGTERM by 800 ms
 });
 
@@ -75,7 +75,7 @@ test("Ctrl+B moves a foreground command to the background; its result shows the 
   tui.keys("C-b");
   await tui.waitForEvent("agent_end");
   const chat = [...CHAT, ...(await moved(tui)), "", " backgrounded", ""];
-  await tui.waitForScreen(screen(chat, BORDER, ROW, "↑53 ↓20 R2 W53 CH1.9% 0.1%/128k (auto)"));
+  await tui.waitForScreen(screen(chat, BORDER, ROW, "↓20 R2 W53 CH3.8% 0.0%/128k (auto)"));
   assert.notDeepEqual(liveGroup(tui.pgid), [], "the job keeps running");
 });
 
@@ -87,7 +87,7 @@ test("a steer while a command runs moves it to the background and is delivered a
   await tui.waitForEvent("agent_end");
   // The steer comes after the tool result and before the reply to it; nothing was aborted.
   const chat = [...CHAT, ...(await moved(tui)), "", "", " hurry up", "", "", " steered", ""];
-  await tui.waitForScreen(screen(chat, BORDER, ROW, "↑57 ↓19 R2 W57 CH1.8% 0.1%/128k (auto)"));
+  await tui.waitForScreen(screen(chat, BORDER, ROW, "↓19 R2 W57 CH3.5% 0.0%/128k (auto)"));
   assert.deepEqual(tui.events().filter((e) => e === "agent_start"), ["agent_start"], "one run");
   assert.notDeepEqual(liveGroup(tui.pgid), [], "the job keeps running");
 });

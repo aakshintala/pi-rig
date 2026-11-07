@@ -83,7 +83,7 @@ function watchUnderEditor(tui) {
 }
 const RUNNING = screen(
   [...GO, " ⏺ Ran 1 shell command", ` ⏺ Bash(${LONG})`, "   ⎿  0s · ctrl+b to run in background", ""],
-  WORKING, [], "↑2 ↓19 W2 CH0.0% 0.0%/128k (auto)",
+  WORKING, [], "↓19 W2 CH0.0% 0.0%/128k (auto)",
 );
 
 test("the editor is the only animated working indicator while a tool runs", async (t) => {
@@ -102,7 +102,7 @@ test("while a long command runs, its call shows outside the summary with the hin
   await tui.waitForScreen(RUNNING);
   writeFileSync(join(tui.cwd, "done"), "");
   await tui.waitForEvent("agent_end");
-  await tui.waitForScreen(screen([...GO, " ⏺ Ran 1 shell command", "", " finished", ""], BORDER, [], "↑31 ↓21 R2 W31 CH3.3% 0.0%/128k (auto)"));
+  await tui.waitForScreen(screen([...GO, " ⏺ Ran 1 shell command", "", " finished", ""], BORDER, [], "↓21 R2 W31 CH6.5% 0.0%/128k (auto)"));
   assert.deepEqual(await under(), [[]], "no rows under the editor at any point");
 });
 
@@ -113,7 +113,7 @@ test("after Ctrl+B the call folds into its summary and the job is listed in Flee
   tui.keys("C-b");
   await tui.waitForEvent("agent_end");
   const row = [" ● main", "   1 shell running in background"]; // running shells share one row
-  await tui.waitForScreen(screen([...GO, " ⏺ Ran 1 shell command", "", " backgrounded", ""], BORDER, row, "↑55 ↓22 R2 W55 CH1.9% 0.1%/128k (auto)"));
+  await tui.waitForScreen(screen([...GO, " ⏺ Ran 1 shell command", "", " backgrounded", ""], BORDER, row, "↓22 R2 W55 CH3.6% 0.0%/128k (auto)"));
   writeFileSync(join(tui.cwd, "done"), ""); // lets the job end before shutdown checks its group
 });
 
@@ -123,7 +123,7 @@ test("Esc during a hinted run kills the command and leaves no hint", async (t) =
   await tui.waitForScreen(RUNNING);
   tui.keys("Escape");
   await tui.waitForEvent("agent_end");
-  await tui.waitForScreen(screen([...GO, " ⏺ Ran 1 shell command", "", " Error: This operation was aborted", ""], BORDER, [], "↑2 ↓19 W2 0.0%/128k (auto)"));
+  await tui.waitForScreen(screen([...GO, " ⏺ Ran 1 shell command", "", " Error: This operation was aborted", ""], BORDER, [], "↓19 W2 0.0%/128k (auto)"));
   await poll(() => !liveGroup(tui.pgid).length, "the command's group to be gone"); // SIGKILL may follow SIGTERM by 800 ms
 });
 
@@ -131,7 +131,7 @@ test("a fast command leaves no hint row", async (t) => {
   const tui = await start(t, [bash("echo hi"), "finished"]);
   const under = watchUnderEditor(tui);
   await tui.waitForEvent("agent_end");
-  await tui.waitForScreen(screen([...GO, " ⏺ Ran 1 shell command", "", " finished", ""], BORDER, [], "↑17 ↓9 R2 W17 CH6.3% 0.0%/128k (auto)"));
+  await tui.waitForScreen(screen([...GO, " ⏺ Ran 1 shell command", "", " finished", ""], BORDER, [], "↓9 R2 W17 CH11.8% 0.0%/128k (auto)"));
   assert.deepEqual(await under(), [[]], "no rows under the editor at any point");
 });
 

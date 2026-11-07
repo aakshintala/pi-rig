@@ -63,7 +63,7 @@ ${RULE}
 
 ${RULE}
 ~/cwd
-↑130 ↓60 R2 W130 CH0.8% 0.2%/128k (auto)                               harness-1`));
+↓60 R2 W130 CH1.5% 0.1%/128k (auto)                                    harness-1`));
 
   tui.keys("C-o");
   await tui.waitForScreen(fill(`
@@ -103,7 +103,7 @@ ${RULE}
 
 ${RULE}
 ~/cwd
-↑130 ↓60 R2 W130 CH0.8% 0.2%/128k (auto)                               harness-1`));
+↓60 R2 W130 CH1.5% 0.1%/128k (auto)                                    harness-1`));
   tui.keys("C-o");
 
   tui.type("/new");
@@ -130,5 +130,5 @@ ${RULE}
 
 ${RULE}
 ~/cwd
-↑148 ↓60 R3 W148 CH1.0% 0.2%/128k (auto)                               harness-1`));
+↓60 R3 W148 CH2.0% 0.1%/128k (auto)                                    harness-1`));
 });

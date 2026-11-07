@@ -45,7 +45,7 @@ const after = (call, result, footer) => {
 
 test("one question: panel under the transcript, inline free text, submits on Enter", async (t) => {
   const tui = await ask(t, [Q("db")]);
-  const footer = "↑2 ↓34 W2 CH0.0% 0.0%/128k (auto)                                      harness-1";
+  const footer = "↓34 W2 CH0.0% 0.0%/128k (auto)                                         harness-1";
   // While a question is up the panel is the dock's middle: border, panel, border, footer.
   const panel = (last, cursor) =>
     screen(asked("Ask User(db)"), [
@@ -69,12 +69,12 @@ test("one question: panel under the transcript, inline free text, submits on Ent
   await tui.waitForScreen(panel("→ 3. my own words", 1));
   tui.keys("Enter");
   await tui.waitForEvent("agent_end");
-  await tui.waitForScreen(after("Ask User(db)", 'db: "my own words"', "↑49 ↓35 R2 W49 CH2.1% 0.1%/128k (auto)                                 harness-1"));
+  await tui.waitForScreen(after("Ask User(db)", 'db: "my own words"', "↓35 R2 W49 CH4.1% 0.0%/128k (auto)                                     harness-1"));
 });
 
 test("several questions: tabs, multi-select, skipping, review note and jumping back", async (t) => {
   const tui = await ask(t, [Q("db"), Q("cache", { multiSelect: true }), { question: "Anything else?", header: "extra" }]);
-  const footer = "↑2 ↓80 W2 CH0.0% 0.1%/128k (auto)                                      harness-1";
+  const footer = "↓80 W2 CH0.0% 0.1%/128k (auto)                                         harness-1";
   const view = (tabs, body) =>
     screen(asked("Ask User(db, cache, extra)"), [RULE, ` ${tabs}`, "", ...body.split("\n"), RULE, CWD, footer]);
   const db = (tabs, pointer = "→ ", tick = "") =>
@@ -137,7 +137,7 @@ ${submit ? "→" : " "} Submit answers
   tui.keys("Enter");
   await tui.waitForEvent("agent_end");
   await tui.waitForScreen(
-    after("Ask User(db, cache, extra)", "db: Beta\ncache: Beta\nextra: skipped\nnote: keep it small", "↑105 ↓81 R2 W105 CH1.0% 0.2%/128k (auto)                               harness-1"),
+    after("Ask User(db, cache, extra)", "db: Beta\ncache: Beta\nextra: skipped\nnote: keep it small", "↓81 R2 W105 CH1.9% 0.1%/128k (auto)                                    harness-1"),
   );
 });
 
@@ -158,10 +158,10 @@ test("Esc cancels the panel", async (t) => {
       "  ↑↓ move · Enter choose · Tab/←→ switch · Esc cancel",
       RULE,
       CWD,
-      "↑2 ↓64 W2 CH0.0% 0.1%/128k (auto)                                      harness-1",
+      "↓64 W2 CH0.0% 0.1%/128k (auto)                                         harness-1",
     ]),
   );
   tui.keys("Escape");
   await tui.waitForEvent("agent_end");
-  await tui.waitForScreen(after("Ask User(db, cache)", "cancelled", "↑77 ↓65 R2 W77 CH1.3% 0.1%/128k (auto)                                 harness-1"));
+  await tui.waitForScreen(after("Ask User(db, cache)", "cancelled", "↓65 R2 W77 CH2.6% 0.1%/128k (auto)                                     harness-1"));
 });

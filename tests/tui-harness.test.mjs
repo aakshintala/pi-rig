@@ -43,7 +43,7 @@ test("tmux harness: pi shows a scripted reply", async (t) => {
 
 ────────────────────────────────────────────────────────────────────────────────
 ~/cwd
-↑4 ↓8 W4 CH0.0% 0.0%/128k (auto)                                       harness-1`;
+↓8 W4 CH0.0% 0.0%/128k (auto)                                          harness-1`;
   await tui.waitForScreen(screen);
 
   // A template missing the blank middle rows is not the full screen.

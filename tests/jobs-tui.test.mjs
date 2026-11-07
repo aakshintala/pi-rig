@@ -14,7 +14,7 @@ const path = (p) => fileURLToPath(new URL(p, import.meta.url));
 const EXTENSIONS = [path("../extensions/fleet/index.ts"), path("../extensions/jobs/index.ts"), path("./fixtures/jobs/clock.ts")];
 const ROWS = 24;
 const BORDER = "─".repeat(80);
-const FOOTER = ["~/cwd", "↑45 ↓16 R2 W46 CH2.2% 0.1%/128k (auto)                                 harness-1"];
+const FOOTER = ["~/cwd", "↓16 R2 W45 CH4.4% 0.0%/128k (auto)                                     harness-1"];
 
 // Fullscreen mode: the chat area on top; editor, FleetView and footer pinned to the bottom.
 const screen = (chat, fleet) => {
@@ -87,7 +87,7 @@ test("a job is FleetView's shells row; the picker opens its log viewer, x stops 
   // The notice folds into the chat and the stopped shell leaves the rows at once; with only
   // the main row left, FleetView draws nothing.
   await tui.waitForScreen(
-    screen([...chat, "", " ■ shell sh job.sh · stopped 0s", "   stopped", "", " noted", ""], []).replace(FOOTER[1], "↑72 ↓18 R47 W73 CH45.5% 0.1%/128k (auto)                               harness-1"),
+    screen([...chat, "", " ■ shell sh job.sh · stopped 0s", "   stopped", "", " noted", ""], []).replace(FOOTER[1], "↓18 R47 W72 CH62.5% 0.1%/128k (auto)                                   harness-1"),
   );
   assert.doesNotMatch(tui.screen(), /running in background/);
   assert.deepEqual(liveGroup(pgid), []);

@@ -57,7 +57,7 @@ test("four tool-only responses are one summary line: thought, combined counts, t
     { hide: true },
   );
   await tui.waitForEvent("agent_end");
-  const usage = "↑145 ↓58 R230 W147 CH71.2% 0.1%/128k (auto)                            harness-1";
+  const usage = "↓58 R230 W145 CH83.4% 0.1%/128k (auto)                                 harness-1";
   const top = ["", " Thinking blocks: hidden", "", "", " go", "", ""];
   await tui.waitForScreen(rows(
     ...top,
@@ -89,7 +89,7 @@ test("text in a response splits the run", async (t) => {
   const tui = await start(t, [[read("c1", "a.txt")], [text("Now b."), read("c2", "b.txt")], "Done."]);
   await tui.waitForEvent("agent_end");
   await tui.waitForScreen(rows("", " go", "", "", " ⏺ Read 1 file", "", " Now b.", "", " ⏺ Read 1 file", "", " Done.",
-    ...footer("↑38 ↓15 R21 W39 CH32.8% 0.0%/128k (auto)                               harness-1")));
+    ...footer("↓15 R21 W38 CH50.0% 0.0%/128k (auto)                                   harness-1")));
 });
 
 test("a steer delivered at the end of a turn splits the run", async (t) => {
@@ -102,12 +102,12 @@ test("a steer delivered at the end of a turn splits the run", async (t) => {
   await tui.waitForScreen("\n" + [
     "", " go", "", "", " ⏺ Waited on 1 file",
     ...Array(37).fill(""),
-    " Steering: also this", steer, "", `── ~ Working ${"─".repeat(67)}`, "", RULE, "~/cwd", "↑2 ↓5 W2 CH0.0% 0.0%/128k (auto)                                       harness-1",
+    " Steering: also this", steer, "", `── ~ Working ${"─".repeat(67)}`, "", RULE, "~/cwd", "↓5 W2 CH0.0% 0.0%/128k (auto)                                          harness-1",
   ].join("\n"));
   writeFileSync(join(tui.cwd, "go"), "");
   await tui.waitForEvent("agent_end");
   await tui.waitForScreen(rows("", " go", "", "", " ⏺ Waited on 1 file", "", "", " also this", "", "", " ⏺ Read 1 file", "", " Done.",
-    ...footer("↑37 ↓13 R22 W37 CH37.0% 0.0%/128k (auto)                               harness-1")));
+    ...footer("↓13 R22 W37 CH54.1% 0.0%/128k (auto)                                   harness-1")));
 });
 
 test("ask_user splits the run", async (t) => {
@@ -121,18 +121,18 @@ test("ask_user splits the run", async (t) => {
     "", " go", "", "", " ⏺ Read 1 file", "", " ⏺ Ask User(pick)",
     ...Array(32).fill(""),
     RULE, "Which?", "", "→ 1. Alpha", "  2. Beta", "  3. Type your own answer", "",
-    "  ↑↓ move · Enter choose · Esc cancel", RULE, "~/cwd", "↑19 ↓34 R2 W19 CH5.6% 0.1%/128k (auto)                                 harness-1",
+    "  ↑↓ move · Enter choose · Esc cancel", RULE, "~/cwd", "↓34 R2 W19 CH10.5% 0.0%/128k (auto)                                    harness-1",
   ].join("\n"));
   tui.keys("Enter");
   await tui.waitForEvent("agent_end");
   await tui.waitForScreen(rows("", " go", "", "", " ⏺ Read 1 file", "", " ⏺ Ask User(pick)", "   ⎿  pick: Alpha", "", " ⏺ Read 1 file", "", " Done.",
-    ...footer("↑75 ↓42 R79 W76 CH62.4% 0.1%/128k (auto)                               harness-1")));
+    ...footer("↓42 R79 W75 CH77.3% 0.1%/128k (auto)                                   harness-1")));
 });
 
 test("thinking shown with Ctrl+T splits the run, and hiding it again joins it", async (t) => {
   const tui = await start(t, [[read("c1", "a.txt")], [think("Next."), read("c2", "b.txt")], "Done."], { hide: true });
   await tui.waitForEvent("agent_end");
-  const usage = "↑38 ↓15 R21 W38 CH33.3% 0.0%/128k (auto)                               harness-1";
+  const usage = "↓15 R21 W38 CH50.0% 0.0%/128k (auto)                                   harness-1";
   const top = ["", " Thinking blocks: hidden", "", "", " go", "", ""];
   await tui.waitForScreen(rows(...top, " ⏺ thought · read 2 files", "", " Done.", ...footer(usage)));
   tui.keys("C-t");
