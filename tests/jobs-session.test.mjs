@@ -544,6 +544,20 @@ test("a bare sleep is refused; sleep in a polling loop or in the background runs
   ]);
 });
 
+test("a sleep inside a command substitution is refused as one that would run", async (t) => {
+  const s = await start(t, [calls(["bash", { command: 'gh issue comment 1 -b "the `sleep 60` process"' }]), says("done")]);
+  await s.session.prompt("go");
+  assert.deepEqual(s.results()[0], [
+    true,
+    "Blocked: `sleep` here is inside a command substitution (backticks or `$()`) and would run. To write it as text, use single quotes, a quoted heredoc (`<<'EOF'`) or `-F <file>`.",
+  ]);
+  const { blockingSleepReason } = await import("../extensions/jobs/guards.ts");
+  assert.equal(blockingSleepReason("sleep 5"), "sleep");
+  assert.equal(blockingSleepReason("echo a\nsleep 5"), "sleep");
+  assert.equal(blockingSleepReason("echo `sleep 5`"), "substitution");
+  assert.equal(blockingSleepReason("cat <<EOF\n$(sleep 1)\nEOF"), "substitution");
+});
+
 test("the sleep check reads shell structure, not the word", async () => {
   const { blockingSleep } = await import("../extensions/jobs/guards.ts");
   const cases = {
@@ -570,6 +584,9 @@ test("the sleep check reads shell structure, not the word", async () => {
     "\\sleep 5": true,
     "'sleep' 5": true,
     "`sleep 5`": true,
+    'echo "`sleep 5`"': true,
+    "echo '`sleep 5`'": false,
+    'echo "$(sleep 60)"': true,
     "echo `sleep 5`": true,
     "echo $(x; sleep 5)": true,
     'x="$(sleep 5)"': true,
@@ -588,6 +605,11 @@ test("the sleep check reads shell structure, not the word", async () => {
     "command -v sleep": false,
     "timeout 5 sleepy": false,
     "cat <<EOF\nsleep 5\nEOF\necho": false,
+    "cat <<'EOF'\n` sleep 5 ` $(sleep 5)\nEOF": false,
+    'cat <<EOF\n` sleep 5 `\nEOF': true,
+    'cat <<EOF\n$(sleep 1)\nEOF': true,
+    "cat <<EOF\n\\$(sleep 1) \\`sleep 1\\`\nEOF": false,
+    "cat <<EOF\nsleep 5\nEOF": false,
     "# sleep 5\necho": false,
     "sleepy 5": false,
   };

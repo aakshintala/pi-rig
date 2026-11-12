@@ -17,6 +17,10 @@ const OPTION_ARGS: Record<string, RegExp> = { nice: /^-n$/, timeout: /^-[sk]$/, 
  * ponytail: `bash -c "..."` and `eval` are not seen.
  */
 export function blockingSleep(src: string): boolean {
+  return blockingSleepReason(src) !== undefined;
+}
+
+export function blockingSleepReason(src: string): "substitution" | "sleep" | undefined {
   const blocks: string[] = []; // open while/until/for/select/function/{, innermost last
   const heredocs: string[] = [];
   let atCommand = true;
@@ -38,11 +42,24 @@ export function blockingSleep(src: string): boolean {
     const rest = src.slice(i);
     const c = src[i];
     if (c === "\n") {
-      if (ends(";")) return true;
+      if (ends(";")) return "sleep";
       i++;
-      for (const tag of heredocs.splice(0)) {
+      for (const pending of heredocs.splice(0)) {
+        const quoted = pending.startsWith("\0");
+        const tag = quoted ? pending.slice(1) : pending;
         const lines = src.slice(i).split("\n");
         const n = lines.findIndex((l) => l.replace(/^\t+/, "") === tag);
+        if (!quoted && n >= 0) {
+          const body = lines.slice(0, n).join("\n");
+          for (let j = 0; j < body.length; j++) {
+            if (body[j] === "\\") j++; // `\``, `\$` and `\\` are text in a heredoc body
+            else if (body[j] === "`" || body.startsWith("$(", j)) {
+              const sub = readWord(body, j);
+              if (sub.subs.some(blockingSleep) && !polling()) return "substitution";
+              j = sub.end - 1;
+            }
+          }
+        }
         i = n < 0 ? src.length : i + lines.slice(0, n + 1).join("\n").length + 1;
       }
       continue;
@@ -70,19 +87,19 @@ export function blockingSleep(src: string): boolean {
       i += redirect[0].length;
       const word = readWord(src, i);
       i = word.end;
-      if (word.subs.some(blockingSleep) && !polling()) return true;
-      if (/^\d*<<-?$/.test(redirect[0])) heredocs.push(word.text);
+      if (word.subs.some(blockingSleep) && !polling()) return "substitution";
+      if (/^\d*<<-?$/.test(redirect[0])) heredocs.push(word.quoted ? `\0${word.text}` : word.text);
       continue;
     }
     const op = /^(&&|\|\||;;&?|;&|\|&|[;&|()])/.exec(rest);
     if (op) {
-      if (ends(op[0])) return true;
+      if (ends(op[0])) return "sleep";
       i += op[0].length;
       continue;
     }
     const word = readWord(src, i);
     i = word.end;
-    if (word.subs.some(blockingSleep) && !polling()) return true;
+    if (word.subs.some(blockingSleep) && !polling()) return "substitution";
     if (!atCommand) continue;
     const w = word.text;
     if (/^[A-Za-z_]\w*=/.test(w)) continue; // an assignment before the command
@@ -125,7 +142,7 @@ export function blockingSleep(src: string): boolean {
     fnName = true;
     if (name === "sleep" && !polling()) sleeping = true;
   }
-  return sleeping;
+  return sleeping ? "sleep" : undefined;
 }
 
 /** One shell word from `start` with its quotes and backslashes removed, its command substitutions, and where it ends. */
