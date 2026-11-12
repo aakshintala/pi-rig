@@ -14,7 +14,7 @@ import { keepSgr, oneLine } from "../../shared/text/index.ts";
 import { resultText, showHint, toolRenderers } from "../../shared/tool-display/index.ts";
 import { ctrlBFree } from "../../shared/tui/index.ts";
 import { logDir, MAX_GROUPS, MAX_OUTPUT, MAX_OUTPUT_BYTES, reap, setGroupLimit, spawnGroup, timers, tooManyJobs } from "../../shared/process-groups/index.ts";
-import { blockingSleep, PROMPT } from "./guards.ts";
+import { blockingSleep, blockingSleepReason, PROMPT } from "./guards.ts";
 
 /** A failure notice carries this many last lines, cut to this many characters. */
 const TAIL_LINES = 20;
@@ -296,9 +296,12 @@ export default function (pi: ExtensionAPI) {
     },
     async execute(toolCallId: string, p: { command: string; timeout?: number; run_in_background?: boolean }, signal: AbortSignal | undefined, onUpdate: any, ctx: ExtensionContext) {
       if (p.timeout !== undefined && !(p.timeout > 0)) throw new Error("timeout must be a positive number of seconds");
-      if (!p.run_in_background && blockingSleep(p.command))
+      const sleepReason = blockingSleepReason(p.command);
+      if (!p.run_in_background && sleepReason)
         throw new Error(
-          "Blocked: a bare sleep only waits. To wait for a condition, poll in a loop (until <check>; do sleep 1; done). " +
+          sleepReason === "substitution"
+            ? "Blocked: `sleep` here is inside a command substitution (backticks or `$()`) and would run. To write it as text, use single quotes, a quoted heredoc (`<<'EOF'`) or `-F <file>`."
+            : "Blocked: a bare sleep only waits. To wait for a condition, poll in a loop (until <check>; do sleep 1; done). " +
             "To wait for a job, use jobs wait. For long work, set run_in_background; to react to output, use monitor.",
         );
       const full = p.run_in_background ? tooManyJobs() : undefined;

@@ -26,7 +26,9 @@ Spec: #30. Built in #48, #49 (guards and crash clean-up) and #51
     A follow-up (Option+Enter) waits as usual.
   - Esc kills a foreground command.
   - A bare `sleep` is refused with a pointer to polling loops, `jobs wait`,
-    `run_in_background` and `monitor`. `sleep` inside a `while` or `until`
+    `run_in_background` and `monitor`. A `sleep` inside backticks or `$()`, even
+    in double quotes or an unquoted heredoc body, is refused with a note that it
+    would run and how to write it as text. `sleep` inside a `while` or `until`
     loop, backgrounded with `&`, or in a function body, runs. The check parses
     the command: quoted text, comments and heredoc bodies are not commands,
     and it sees through `command`, `exec`, `env`, `nice`, `nohup`, `timeout`,
