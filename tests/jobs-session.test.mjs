@@ -608,6 +608,7 @@ test("the sleep check reads shell structure, not the word", async () => {
     "cat <<'EOF'\n` sleep 5 ` $(sleep 5)\nEOF": false,
     'cat <<EOF\n` sleep 5 `\nEOF': true,
     'cat <<EOF\n$(sleep 1)\nEOF': true,
+    "cat <<EOF\n\\$(sleep 1) \\`sleep 1\\`\nEOF": false,
     "cat <<EOF\nsleep 5\nEOF": false,
     "# sleep 5\necho": false,
     "sleepy 5": false,

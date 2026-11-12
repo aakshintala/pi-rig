@@ -52,7 +52,8 @@ export function blockingSleepReason(src: string): "substitution" | "sleep" | und
         if (!quoted && n >= 0) {
           const body = lines.slice(0, n).join("\n");
           for (let j = 0; j < body.length; j++) {
-            if (body[j] === "`" || body.startsWith("$(", j)) {
+            if (body[j] === "\\") j++; // `\``, `\$` and `\\` are text in a heredoc body
+            else if (body[j] === "`" || body.startsWith("$(", j)) {
               const sub = readWord(body, j);
               if (sub.subs.some(blockingSleep) && !polling()) return "substitution";
               j = sub.end - 1;
